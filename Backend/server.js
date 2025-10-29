@@ -1,11 +1,12 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
-
 const app = express();
 
 //Backend run by ----> node server.js
 // It should run on http://localhost:5000
+//Backend (Node.js + Express + MongoDB)  database, logic, and API requests.
+
 
 // Middleware
 app.use(cors());
@@ -28,6 +29,7 @@ mongoose.connect(
 )
 .then(() => console.log("MongoDB connected"))
 .catch(err => console.log(err));
+
 
 
 // Start server
