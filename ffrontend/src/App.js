@@ -60,7 +60,7 @@ function App() {
             style={{
               position: "fixed",
               bottom: 25,
-              right: 25,
+              right: 35,
               background: "linear-gradient(135deg, #1976d2, #42a5f5)",
               color: "#fff",
               border: "none",

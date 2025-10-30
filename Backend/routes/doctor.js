@@ -1,30 +1,28 @@
 const express = require("express");
 const router = express.Router();
 const User = require("../models/User");
-const Visit = require("../models/Visit");
+const DoctorSchedule = require("../models/DoctorSchedule");
 const authMiddleware = require("../middleware/authMiddleware");
 
 const workingDays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"];
 const startHour = 8;
-const endHour = 14; // exclusive → last slot 13:00
+const endHour = 15;
 
 function generateSlots() {
   const slots = [];
   for (let h = startHour; h < endHour; h++) {
-    const label = `${h.toString().padStart(2, "0")}:00`;
-    slots.push(label);
+    slots.push(`${h.toString().padStart(2, "0")}:00`);
   }
   return slots;
 }
 
-// Get doctors with available days and times
+// ✅ Updated route
 router.get("/", authMiddleware(["patient"]), async (req, res) => {
   try {
     const doctors = await User.find({ role: "doctor" });
     const result = [];
     const today = new Date();
 
-    // Generate next 7 working days (skip weekends)
     const nextDays = [];
     for (let i = 0; nextDays.length < 7; i++) {
       const d = new Date(today);
@@ -38,14 +36,28 @@ router.get("/", authMiddleware(["patient"]), async (req, res) => {
 
       for (const day of nextDays) {
         const dateStr = day.toISOString().split("T")[0];
-        const slots = generateSlots();
 
-        // Get visits for that doctor/date
-        const visits = await Visit.find({ doctor: doc._id, date: dateStr });
-        const reserved = visits.map((v) => v.time);
+        // ✅ Get saved schedule from DB
+        const schedule = await DoctorSchedule.findOne({
+          doctor: doc._id,
+          date: dateStr,
+        });
 
-        const availableSlots = slots.filter((t) => !reserved.includes(t));
-        doctorSchedule.push({ date: dateStr, availableSlots });
+        let availableSlots, reservedSlots;
+        if (schedule) {
+          availableSlots = schedule.availableSlots;
+          reservedSlots = schedule.reservedSlots;
+        } else {
+          const allSlots = generateSlots();
+          availableSlots = allSlots;
+          reservedSlots = [];
+        }
+
+        doctorSchedule.push({
+          date: dateStr,
+          availableSlots,
+          reservedSlots,
+        });
       }
 
       result.push({

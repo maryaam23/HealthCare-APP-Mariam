@@ -5,16 +5,18 @@ const authMiddleware = require("../middleware/authMiddleware");
 
 // Patient reserves a visit
 // Patient reserves a visit (with date & time)
+const DoctorSchedule = require("../models/DoctorSchedule");
+
 router.post("/reserve", authMiddleware(["patient"]), async (req, res) => {
   try {
     const { doctorId, date, time } = req.body;
     if (!doctorId || !date || !time)
       return res.status(400).json({ msg: "doctorId, date and time are required" });
 
-    // Check if doctor busy in same slot
     const existing = await Visit.findOne({ doctor: doctorId, date, time });
     if (existing) return res.status(400).json({ msg: "Slot already reserved" });
 
+    // Reserve visit
     const visit = new Visit({
       patient: req.user.id,
       doctor: doctorId,
@@ -22,6 +24,23 @@ router.post("/reserve", authMiddleware(["patient"]), async (req, res) => {
       time,
     });
     await visit.save();
+
+    // Update doctor’s schedule
+    let schedule = await DoctorSchedule.findOne({ doctor: doctorId, date });
+    if (!schedule) {
+      const allSlots = ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00","14:00"];
+      schedule = new DoctorSchedule({
+        doctor: doctorId,
+        date,
+        availableSlots: allSlots.filter((s) => s !== time),
+        reservedSlots: [time],
+      });
+    } else {
+      schedule.availableSlots = schedule.availableSlots.filter((s) => s !== time);
+      if (!schedule.reservedSlots.includes(time)) schedule.reservedSlots.push(time);
+    }
+    await schedule.save();
+
     res.json({ msg: "Visit reserved", visit });
   } catch (err) {
     console.error(err);

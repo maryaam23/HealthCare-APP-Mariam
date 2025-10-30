@@ -151,27 +151,31 @@ export default function Doctor({ token }) {
       backgroundPosition: "right bottom",
       backgroundSize: "450px",
     }}>
-      {/* Motivational Banner */}
+
+
+      {/* Welcome Message */}
       <motion.div
-        initial={{ opacity: 0, y: -20 }}
+        initial={{ opacity: 0, y: -15 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8 }}
+        transition={{ duration: 0.7 }}
         style={{
-          margin: "0 auto 25px auto", // center horizontally
-          padding: "10px 10px",       // smaller padding
-          maxWidth: "450px",          // limit width
-          borderRadius: 10,
           textAlign: "center",
-          fontFamily: "'Oleo Script', cursive",
-          fontSize: 16,               // slightly larger for script font
-          fontWeight: 300,            // script fonts usually look better lighter
-          color: "white",
-          background: "linear-gradient(135deg, #3d98e2eb, #1976d2d3)",
-          boxShadow: "0 6px 20px rgba(25, 118, 210, 0.3)",
-          letterSpacing: "0.7px",
+          marginBottom: 25,
+          fontFamily: "'Poppins', sans-serif",
+          color: "#2b2b2b",
         }}
       >
-        Every patient is a story, and you help write the happy endings.
+        <h2 style={{ fontSize: 24, color: "#1976d2", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: "10px" }}>
+          <img
+            src={`${process.env.PUBLIC_URL}/heart-beat.png`}
+            alt="Heart Icon"
+            style={{ width: 28, height: 28 }}
+          />
+          Welcome to the Health Care Application
+        </h2>
+        <p style={{ fontSize: 15, color: "#555" }}>
+          Manage your appointments, track patient progress, and make every visit meaningful.
+        </p>
       </motion.div>
 
 
@@ -717,6 +721,28 @@ export default function Doctor({ token }) {
           </div>
         </motion.div>
       )}
+      {/* Motivational Banner */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8 }}
+        style={{
+          margin: "50px auto 35px auto", // added top margin (30px)
+          padding: "10px 10px",          // smaller padding
+          maxWidth: "450px",             // limit width
+          borderRadius: 10,
+          textAlign: "center",
+          fontFamily: "'Oleo Script', cursive",
+          fontSize: 16,                  // slightly larger for script font
+          fontWeight: 300,               // script fonts usually look better lighter
+          color: "white",
+          background: "linear-gradient(135deg, #207ac3dc, #115191c9)",
+          boxShadow: "0 6px 20px rgba(145, 197, 248, 0.55)",
+          letterSpacing: "0.7px",
+        }}
+      >
+        Every patient is a story, and you help write the happy endings.
+      </motion.div>
 
 
     </div>
