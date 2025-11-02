@@ -2,51 +2,156 @@ const express = require("express");
 const router = express.Router();
 const Visit = require("../models/Visit");
 const authMiddleware = require("../middleware/authMiddleware");
-
-// Patient reserves a visit
-// Patient reserves a visit (with date & time)
 const DoctorSchedule = require("../models/DoctorSchedule");
+
+
+router.post("/cancel", authMiddleware(["patient"]), async (req, res) => {
+  const { doctorId, date, time } = req.body;
+  const patientId = req.user.id;
+
+  try {
+    // Convert date string to Date object for Visit query (if needed)
+    const visitDate = new Date(date);
+
+    // Find and delete the visit instead of marking it cancelled
+    const visit = await Visit.findOneAndDelete({
+      doctor: doctorId,
+      patient: patientId,
+      date: visitDate,
+      time,
+    });
+
+    if (!visit) {
+      return res.status(404).json({ msg: "Visit not found" });
+    }
+
+    // Update doctor's schedule: remove reserved slot and add it back to availableSlots
+    const schedule = await DoctorSchedule.findOne({ doctor: doctorId, date });
+
+    if (!schedule) {
+      return res.status(404).json({ msg: "Doctor schedule not found" });
+    }
+
+    // Remove reserved slot for this time and patient
+    schedule.reservedSlots = schedule.reservedSlots.filter(
+      (slot) => !(slot.time === time && slot.patient.toString() === patientId)
+    );
+
+    // Add the slot back to availableSlots if not already there
+    if (!schedule.availableSlots.includes(time)) {
+      schedule.availableSlots.push(time);
+      schedule.availableSlots.sort();
+    }
+
+    await schedule.save();
+
+    res.json({
+      msg: "Reservation cancelled successfully",
+      updatedSchedule: schedule,
+    });
+
+  } catch (err) {
+    console.error("Cancel reservation error:", err);
+    res.status(500).json({ msg: "Server error during cancellation" });
+  }
+});
+
+// ✅ Patient reserves a visit
+function normalizeDate(dateStr) {
+  const date = new Date(dateStr);
+  date.setUTCHours(0, 0, 0, 0);
+  return date;
+}
 
 router.post("/reserve", authMiddleware(["patient"]), async (req, res) => {
   try {
     const { doctorId, date, time } = req.body;
-    if (!doctorId || !date || !time)
+    if (!doctorId || !date || !time) {
       return res.status(400).json({ msg: "doctorId, date and time are required" });
+    }
 
-    const existing = await Visit.findOne({ doctor: doctorId, date, time });
-    if (existing) return res.status(400).json({ msg: "Slot already reserved" });
+    const startOfDay = normalizeDate(date);
+    const endOfDay = new Date(startOfDay);
+    endOfDay.setUTCHours(23, 59, 59, 999);
 
-    // Reserve visit
+    // Check if slot is reserved for this doctor and date (anytime during the day)
+    const existing = await Visit.findOne({
+      doctor: doctorId,
+      date: { $gte: startOfDay, $lte: endOfDay },
+      time,
+      status: { $ne: "cancelled" }
+    });
+
+    if (existing) {
+      return res.status(400).json({ msg: "Slot already reserved" });
+    }
+
+    // Prevent same patient double booking
+    const patientConflict = await Visit.findOne({
+      patient: req.user.id,
+      date: { $gte: startOfDay, $lte: endOfDay },
+      time,
+      status: { $ne: "cancelled" }
+    });
+
+    if (patientConflict) {
+      return res.status(400).json({ msg: "You already have a visit at this time" });
+    }
+
     const visit = new Visit({
       patient: req.user.id,
       doctor: doctorId,
-      date,
+      date: startOfDay,
       time,
     });
+
     await visit.save();
 
-    // Update doctor’s schedule
+
+
+    // ✅ Update the doctor's schedule
     let schedule = await DoctorSchedule.findOne({ doctor: doctorId, date });
+
     if (!schedule) {
-      const allSlots = ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00","14:00"];
+      const defaultSlots = ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00"];
+
       schedule = new DoctorSchedule({
         doctor: doctorId,
         date,
-        availableSlots: allSlots.filter((s) => s !== time),
-        reservedSlots: [time],
+        availableSlots: defaultSlots.filter((s) => s !== time),
+        reservedSlots: [{ time, patient: req.user.id }]
       });
     } else {
       schedule.availableSlots = schedule.availableSlots.filter((s) => s !== time);
-      if (!schedule.reservedSlots.includes(time)) schedule.reservedSlots.push(time);
+
+      // ✅ Only add if not duplicated
+      const alreadyReserved = schedule.reservedSlots.some(
+        (s) => s.time === time
+      );
+      if (!alreadyReserved) {
+        schedule.reservedSlots.push({ time, patient: req.user.id });
+      }
     }
+
     await schedule.save();
 
-    res.json({ msg: "Visit reserved", visit });
+    return res.json({
+      msg: "Visit reserved successfully!",
+      visit,
+      updatedSchedule: schedule, // send the updated DoctorSchedule object
+    });
+
+
   } catch (err) {
     console.error(err);
-    res.status(500).json({ msg: "Server error" });
+    return res.status(500).json({ msg: "Server error" });
   }
 });
+
+
+
+
+
 
 
 // Get all visits for logged-in doctor

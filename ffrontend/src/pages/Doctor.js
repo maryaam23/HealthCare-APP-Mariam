@@ -1,7 +1,9 @@
-import { useState, useEffect } from "react";
+
 import { motion } from "framer-motion";
 import { FaUserMd, FaCalendarAlt, FaStethoscope, FaSignOutAlt } from "react-icons/fa";
 import api from "../api";
+import { useState, useEffect, useRef } from "react";
+
 
 
 //Frontend/ → React (user interface for doctors, patients, and finance)
@@ -30,6 +32,8 @@ export default function Doctor({ token }) {
   const [selectedMonth, setSelectedMonth] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null);
   const [doctor, setDoctor] = useState(null);
+  const treatmentsRef = useRef(null);
+
 
   useEffect(() => {
     const fetchDoctor = async () => {
@@ -504,8 +508,11 @@ export default function Doctor({ token }) {
                 ) : (
                   <button
                     onClick={() => {
-                      setVisitId(v._id);
-                      setSelectedVisit(v); // ✅ store full visit details
+                      setVisitId(v._id);         // set current visit ID so form shows
+                      setSelectedVisit(v);       // set selected visit data
+                      setTimeout(() => {
+                        treatmentsRef.current?.scrollIntoView({ behavior: "smooth" });
+                      }, 100);
                     }}
                     style={{
                       marginTop: 5,
@@ -519,6 +526,7 @@ export default function Doctor({ token }) {
                   >
                     Add Treatments
                   </button>
+
                 )}
               </motion.div>
             ))
@@ -530,6 +538,7 @@ export default function Doctor({ token }) {
       {/* Add Treatments Form */}
       {visitId && (
         <motion.div
+          ref={treatmentsRef}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}

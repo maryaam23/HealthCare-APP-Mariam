@@ -7,26 +7,28 @@ export default function Finance({ token }) {
         patientName: "",
         visitId: "",
         status: "",
-        sortBy: "", // new field for sorting
+        sortBy: "",
     });
     const [visits, setVisits] = useState([]);
     const [loading, setLoading] = useState(false);
 
-    // Fetch visits whenever filters change
+    const isValidVisitId = (id) => /^[a-fA-F0-9]{24}$/.test(id);
+
     useEffect(() => {
-        const fetchVisits = async () => {
+        const delayDebounceFn = setTimeout(async () => {
             setLoading(true);
             try {
                 const params = new URLSearchParams();
                 if (filters.doctorName) params.append("doctorName", filters.doctorName);
                 if (filters.patientName) params.append("patientName", filters.patientName);
-                if (filters.visitId) params.append("visitId", filters.visitId);
+                if (filters.visitId && isValidVisitId(filters.visitId)) {
+                    params.append("visitId", filters.visitId);
+                }
                 if (filters.status) params.append("status", filters.status);
                 if (filters.sortBy) params.append("sortBy", filters.sortBy);
 
                 const res = await api.get(`/finance/visits?${params.toString()}`, {
-                    headers: { Authorization: `Bearer ${token}` }
-
+                    headers: { Authorization: `Bearer ${token}` },
                 });
                 setVisits(res.data);
             } catch (err) {
@@ -34,10 +36,11 @@ export default function Finance({ token }) {
             } finally {
                 setLoading(false);
             }
-        };
+        }, 400);
 
-        fetchVisits();
+        return () => clearTimeout(delayDebounceFn);
     }, [filters, token]);
+
 
     const handleInputChange = (e) => {
         setFilters({ ...filters, [e.target.name]: e.target.value });
@@ -53,125 +56,182 @@ export default function Finance({ token }) {
         });
     };
 
-    // Calculate total sum of all visit totalAmount values
+
+
+    // Sum total amounts for completed visits (all, paid, unpaid)
+    const completedVisits = visits.filter(v => v.status === "completed");
+    const totalCompletedAmount = completedVisits.reduce((sum, v) => sum + (v.totalAmount || 0), 0);
+    const totalPaidAmount = completedVisits.reduce((sum, v) => sum + ((v.paid && v.totalAmount) || 0), 0);
+    const totalUnpaidAmount = completedVisits.reduce((sum, v) => sum + ((!v.paid && v.totalAmount) || 0), 0);
+
+
+    const totalPendingCount = visits.filter(v => v.status === "pending").length;
+
+
+
+
+
+
     const totalSum = visits.reduce((sum, visit) => sum + (visit.totalAmount || 0), 0);
+
+    // Colors & shadows variables
+    const primaryColor = "#1E88E5"; // Blue 600
+    const primaryHover = "#1565C0"; // Blue 800
+    const successColor = "#43A047"; // Green 600
+    const warningColor = "#FB8C00"; // Orange 600
+    const errorColor = "#E53935"; // Red 600
+    const bgGradient = "linear-gradient(135deg, #E3F2FD 0%, #FFFFFF 100%)";
+    const cardBg = "#FFFFFF";
+    const borderRadius = 14;
 
     return (
         <div
             style={{
                 fontFamily: "'Poppins', sans-serif",
-                background: "linear-gradient(to right, #edf4faff, #e8f4ffff)",
+                background: bgGradient,
                 minHeight: "100vh",
-                padding: "30px 20px",
+                padding: "40px 24px",
                 maxWidth: 1500,
                 margin: "0 auto",
+                color: "#2C3E50",
+                userSelect: "none",
             }}
         >
             <h2
                 style={{
-                    color: "#1976d2",
-                    fontWeight: 600,
-                    fontSize: 28,
-                    marginBottom: 25,
+                    color: primaryColor,
+                    fontWeight: 700,
+                    fontSize: 32,
+                    marginBottom: 32,
                     textAlign: "center",
-                    textShadow: "1px 1px 3px rgba(25, 118, 210, 0.3)",
+                    textShadow: "0 2px 6px rgba(30,136,229,0.3)",
+                    letterSpacing: "0.06em",
                 }}
             >
                 Finance Dashboard - Visits
             </h2>
 
-            {/* Filters Title */}
             <p
                 style={{
-                    fontSize: 18,
-                    fontWeight: "600",
-                    color: "#1976d2",
-                    marginBottom: 10,
+                    fontSize: 20,
+                    fontWeight: "700",
+                    color: primaryColor,
+                    marginBottom: 16,
                     textAlign: "center",
-                    userSelect: "none",
+                    letterSpacing: "0.04em",
                 }}
             >
                 Filter Visits
             </p>
 
-            {/* Filter Form */}
             <form
                 style={{
                     display: "flex",
-                    flexWrap: "wrap",
-                    gap: 15,
-                    marginBottom: 25,
+                    flexWrap: "nowrap", // no wrapping — keep one line
+                    gap: 10,
+                    marginBottom: 30,
                     justifyContent: "center",
-                    background: "rgba(255,255,255,0.9)",
+                    background: cardBg,
                     padding: 20,
-                    borderRadius: 16,
-                    boxShadow: "0 8px 20px rgba(0,0,0,0.1)",
+                    borderRadius,
+                    boxShadow: "0 8px 28px rgba(30, 136, 229, 0.12)",
+                    transition: "box-shadow 0.3s ease",
+                    overflowX: "auto", // allow horizontal scroll if too narrow
                 }}
+                onSubmit={(e) => e.preventDefault()}
             >
-                {["doctorName", "patientName", "visitId"].map((field) => (
-                    <input
-                        key={field}
-                        type="text"
-                        name={field}
-                        placeholder={field === "visitId" ? "Visit ID" : `${field.replace("Name", " Name")}`}
-                        value={filters[field]}
-                        onChange={handleInputChange}
-                        style={{
-                            flex: "1 1 200px",
-                            padding: "10px 14px",
-                            fontSize: 16,
-                            borderRadius: 12,
-                            border: "1.5px solid #1976d2",
-                            outline: "none",
-                            transition: "border-color 0.3s",
-                        }}
-                        onFocus={(e) => (e.target.style.borderColor = "#1565c0")}
-                        onBlur={(e) => (e.target.style.borderColor = "#1976d2")}
-                    />
-                ))}
+                {["doctorName", "patientName", "visitId"].map((field) => {
+                    const placeholders = {
+                        doctorName: "Doctor Name",
+                        patientName: "Patient Name",
+                        visitId: "Visit ID",
+                    };
+
+                    return (
+                        <input
+                            key={field}
+                            type="text"
+                            name={field}
+                            placeholder={placeholders[field]}
+                            value={filters[field]}
+                            onChange={handleInputChange}
+                            style={{
+                                flex: "1 1 240px",
+                                padding: "14px 18px",
+                                fontSize: 16,
+                                borderRadius,
+                                border: `2px solid ${primaryColor}`,
+                                outline: "none",
+                                transition: "all 0.3s ease",
+                                boxShadow: "inset 0 1px 4px rgba(0,0,0,0.08)",
+                            }}
+                            onFocus={(e) => {
+                                e.target.style.borderColor = primaryHover;
+                                e.target.style.boxShadow = `0 0 8px ${primaryHover}`;
+                            }}
+                            onBlur={(e) => {
+                                e.target.style.borderColor = primaryColor;
+                                e.target.style.boxShadow = "inset 0 1px 4px rgba(0,0,0,0.08)";
+                            }}
+                        />
+                    );
+                })}
 
                 <select
                     name="status"
                     value={filters.status}
                     onChange={handleInputChange}
                     style={{
-                        flex: "1 1 200px",
-                        padding: "10px 14px",
+                        flex: "1 1 220px",
+                        padding: "14px 18px",
                         fontSize: 16,
-                        borderRadius: 12,
-                        border: "1.5px solid #1976d2",
+                        borderRadius,
+                        border: `2px solid ${primaryColor}`,
                         outline: "none",
-                        transition: "border-color 0.3s",
                         backgroundColor: "white",
                         cursor: "pointer",
+                        transition: "all 0.3s ease",
+                        boxShadow: "inset 0 1px 4px rgba(0,0,0,0.08)",
                     }}
-                    onFocus={(e) => (e.target.style.borderColor = "#1565c0")}
-                    onBlur={(e) => (e.target.style.borderColor = "#1976d2")}
+                    onFocus={(e) => {
+                        e.target.style.borderColor = primaryHover;
+                        e.target.style.boxShadow = `0 0 8px ${primaryHover}`;
+                    }}
+                    onBlur={(e) => {
+                        e.target.style.borderColor = primaryColor;
+                        e.target.style.boxShadow = "inset 0 1px 4px rgba(0,0,0,0.08)";
+                    }}
                 >
                     <option value="">All Statuses</option>
                     <option value="pending">Pending</option>
-                    <option value="in-progress">In Progress</option>
+                    
                     <option value="completed">Completed</option>
                 </select>
 
-                {/* New Sort By Select */}
                 <select
                     name="sortBy"
                     value={filters.sortBy}
                     onChange={handleInputChange}
                     style={{
-                        flex: "1 1 220px",
-                        padding: "10px 14px",
+                        flex: "1 1 260px",
+                        padding: "14px 18px",
                         fontSize: 16,
-                        borderRadius: 12,
-                        border: "1.5px solid #1976d2",
+                        borderRadius,
+                        border: `2px solid ${primaryColor}`,
                         outline: "none",
-                        transition: "border-color 0.3s",
                         backgroundColor: "white",
                         cursor: "pointer",
+                        transition: "all 0.3s ease",
+                        boxShadow: "inset 0 1px 4px rgba(0,0,0,0.08)",
                     }}
-                    onFocus={(e) => (e.target.style.borderColor = "#1565c0")}
-                    onBlur={(e) => (e.target.style.borderColor = "#1976d2")}
+                    onFocus={(e) => {
+                        e.target.style.borderColor = primaryHover;
+                        e.target.style.boxShadow = `0 0 8px ${primaryHover}`;
+                    }}
+                    onBlur={(e) => {
+                        e.target.style.borderColor = primaryColor;
+                        e.target.style.boxShadow = "inset 0 1px 4px rgba(0,0,0,0.08)";
+                    }}
                 >
                     <option value="">Sort By (None)</option>
                     <option value="date_asc">Date Ascending</option>
@@ -186,34 +246,39 @@ export default function Finance({ token }) {
                     type="button"
                     onClick={handleReset}
                     style={{
-                        padding: "10px 30px",
+                        padding: "14px 36px",
                         fontSize: 16,
-                        fontWeight: "600",
-                        borderRadius: 14,
+                        fontWeight: "700",
+                        borderRadius,
                         border: "none",
-                        backgroundColor: "#e53935",
+                        backgroundColor: errorColor,
                         color: "white",
                         cursor: "pointer",
-                        boxShadow: "0 6px 15px rgba(229, 57, 53, 0.6)",
-                        transition: "background-color 0.3s",
-                        marginLeft: 10,
+                        boxShadow: `0 6px 18px rgba(229, 57, 53, 0.6)`,
+                        transition: "background-color 0.3s ease, transform 0.2s ease",
                         alignSelf: "center",
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#b71c1c")}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#e53935")}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = "#b71c1c";
+                        e.currentTarget.style.transform = "scale(1.05)";
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = errorColor;
+                        e.currentTarget.style.transform = "scale(1)";
+                    }}
                 >
                     Reset
                 </button>
             </form>
 
-            {/* Content */}
             {loading ? (
                 <p
                     style={{
                         textAlign: "center",
-                        fontSize: 18,
-                        color: "#1976d2",
-                        fontWeight: 600,
+                        fontSize: 20,
+                        color: primaryColor,
+                        fontWeight: 700,
+                        marginTop: 40,
                     }}
                 >
                     Loading visits...
@@ -222,9 +287,10 @@ export default function Finance({ token }) {
                 <p
                     style={{
                         textAlign: "center",
-                        fontSize: 18,
-                        color: "#e53935",
-                        fontWeight: 600,
+                        fontSize: 20,
+                        color: errorColor,
+                        fontWeight: 700,
+                        marginTop: 40,
                     }}
                 >
                     No visits found.
@@ -234,26 +300,32 @@ export default function Finance({ token }) {
                     <div
                         style={{
                             overflowX: "auto",
-                            background: "rgba(255,255,255,0.95)",
-                            borderRadius: 16,
+                            background: cardBg,
+                            borderRadius,
                             padding: 20,
-                            boxShadow: "0 8px 20px rgba(0,0,0,0.1)",
+                            boxShadow: "0 12px 36px rgba(0,0,0,0.08)",
                         }}
                     >
                         <table
                             style={{
                                 width: "100%",
                                 borderCollapse: "separate",
-                                borderSpacing: "0 12px",
+                                borderSpacing: "0 14px",
+                                minWidth: 900,
                             }}
                         >
                             <thead>
                                 <tr
                                     style={{
-                                        backgroundColor: "#1976d2",
+                                        backgroundColor: primaryColor,
                                         color: "white",
                                         textAlign: "left",
-                                        borderRadius: "16px",
+                                        fontWeight: 700,
+                                        fontSize: 15,
+                                        letterSpacing: "0.06em",
+                                        userSelect: "none",
+                                        borderRadius,
+                                        boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
                                     }}
                                 >
                                     {[
@@ -265,15 +337,14 @@ export default function Finance({ token }) {
                                         "Treatments (name: cost)",
                                         "Total Amount",
                                         "Status",
-                                        "Paid", // new header here
+                                        "Paid",
                                     ].map((header) => (
                                         <th
                                             key={header}
                                             style={{
-                                                padding: "12px 15px",
-                                                fontWeight: "600",
-                                                fontSize: 14,
-                                                letterSpacing: "0.05em",
+                                                padding: "14px 18px",
+                                                borderBottom: "none",
+                                                userSelect: "none",
                                             }}
                                         >
                                             {header}
@@ -286,60 +357,80 @@ export default function Finance({ token }) {
                                     <tr
                                         key={visit._id}
                                         style={{
-                                            backgroundColor: "#f7f9fc",
-                                            borderRadius: 12,
-                                            boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                                            backgroundColor: "#fefefe",
+                                            borderRadius,
+                                            boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
+                                            transition: "background-color 0.2s ease",
+                                            cursor: "default",
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.backgroundColor = "#f1f7ff";
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.backgroundColor = "#fefefe";
                                         }}
                                     >
                                         <td
                                             style={{
-                                                padding: "15px",
-                                                fontSize: 13,
-                                                fontWeight: "500",
-                                                color: "#1976d2",
-                                                maxWidth: 150,
+                                                padding: "16px 12px",
+                                                fontSize: 14,
+                                                fontWeight: 600,
+                                                color: primaryColor,
+                                                maxWidth: 200,
                                                 wordBreak: "break-word",
+                                                userSelect: "text",
                                             }}
+                                            title={visit._id}
                                         >
                                             {visit._id}
                                         </td>
-                                        <td style={{ padding: "15px", fontSize: 14, fontWeight: "500" }}>
+                                        <td style={{ padding: "16px 18px", fontSize: 15, fontWeight: 600 }}>
                                             {visit.doctor.name}
                                         </td>
-                                        <td style={{ padding: "15px", fontSize: 14, fontWeight: "500" }}>
+                                        <td style={{ padding: "16px 18px", fontSize: 15, fontWeight: 600 }}>
                                             {visit.patient.name}
                                         </td>
                                         <td
-                                            style={{ padding: "15px", fontSize: 14, fontWeight: "600", color: "#1976d2" }}
+                                            style={{ padding: "16px 18px", fontSize: 14, fontWeight: 600, color: primaryColor }}
                                         >
                                             {new Intl.DateTimeFormat("en-GB", {
                                                 day: "2-digit",
                                                 month: "short",
                                                 year: "numeric",
                                             }).format(new Date(visit.date))}
-                                            <span style={{ marginLeft: 7 }}>
+                                            <span style={{ marginLeft: 8, fontWeight: 500, color: "#444" }}>
                                                 {visit.time.length === 5 ? visit.time : visit.time.padStart(5, "0")}
                                             </span>
                                         </td>
 
-                                        <td style={{ padding: "15px", fontSize: 14, fontStyle: "italic", color: "#555" }}>
+                                        <td
+                                            style={{
+                                                padding: "16px 18px",
+                                                fontSize: 14,
+                                                fontStyle: "italic",
+                                                color: "#666",
+                                                maxWidth: 180,
+                                                whiteSpace: "break-spaces",
+                                                wordBreak: "break-word",
+                                            }}
+                                        >
                                             {visit.problem || "-"}
                                         </td>
-                                        <td style={{ padding: "15px", fontSize: 14 }}>
+                                        <td style={{ padding: "16px 18px", fontSize: 14, fontWeight: 500, color: "#333" }}>
                                             {visit.treatments.length === 0
                                                 ? "-"
                                                 : visit.treatments.map((t, i) => (
-                                                    <div key={i} style={{ marginBottom: 4, color: "#333", fontWeight: 500 }}>
+                                                    <div key={i} style={{ marginBottom: 4 }}>
                                                         {t.name}: ${t.cost.toFixed(2)}
                                                     </div>
                                                 ))}
                                         </td>
                                         <td
                                             style={{
-                                                padding: "15px",
-                                                fontWeight: "600",
-                                                color: "#1976d2",
-                                                fontSize: 14,
+                                                padding: "16px 18px",
+                                                fontWeight: 700,
+                                                color: primaryColor,
+                                                fontSize: 15,
                                                 whiteSpace: "nowrap",
                                             }}
                                         >
@@ -347,25 +438,25 @@ export default function Finance({ token }) {
                                         </td>
                                         <td
                                             style={{
-                                                padding: "15px",
-                                                fontWeight: "600",
+                                                padding: "16px 18px",
+                                                fontWeight: 700,
                                                 color:
                                                     visit.status === "completed"
-                                                        ? "#4caf50"
+                                                        ? successColor
                                                         : visit.status === "in-progress"
-                                                            ? "#ff9800"
-                                                            : "#e53935",
+                                                            ? warningColor
+                                                            : errorColor,
                                                 textTransform: "capitalize",
-                                                fontSize: 14,
+                                                fontSize: 15,
+                                                userSelect: "none",
                                             }}
                                         >
                                             {visit.status}
                                         </td>
 
-                                        {/* Paid checkbox column */}
                                         <td
                                             style={{
-                                                padding: "15px",
+                                                padding: "16px 18px",
                                                 fontSize: 14,
                                                 textAlign: "center",
                                             }}
@@ -382,7 +473,7 @@ export default function Finance({ token }) {
                                                             { paid: newPaidStatus },
                                                             {
                                                                 headers: {
-                                                                    Authorization: `Bearer ${token}`,  // add Bearer if backend expects it
+                                                                    Authorization: `Bearer ${token}`,
                                                                     "Content-Type": "application/json",
                                                                 },
                                                             }
@@ -396,7 +487,12 @@ export default function Finance({ token }) {
                                                         alert(error.response?.data?.msg || "Failed to update payment status");
                                                     }
                                                 }}
-
+                                                style={{
+                                                    width: 20,
+                                                    height: 20,
+                                                    cursor: visit.status === "completed" ? "pointer" : "not-allowed",
+                                                    accentColor: successColor,
+                                                }}
                                             />
                                         </td>
                                     </tr>
@@ -405,30 +501,36 @@ export default function Finance({ token }) {
                         </table>
                     </div>
 
-                    {/* Summary */}
+
+
+
                     <div
                         style={{
-                            marginTop: 20,
-                            padding: "20px 30px",
-                            backgroundColor: "white",
-                            borderRadius: 16,
-                            boxShadow: "0 6px 18px rgba(25, 118, 210, 0.15)",
+                            marginTop: 38,
+                            padding: "24px 36px",
+                            backgroundColor: cardBg,
+                            borderRadius,
+                            boxShadow: `0 8px 28px rgba(30,136,229,0.1)`,
                             display: "flex",
-                            justifyContent: "space-between",
+                            justifyContent: "space-around",
                             alignItems: "center",
-                            maxWidth: 500,
+                            maxWidth: 1200,
                             marginLeft: "auto",
                             marginRight: "auto",
                             userSelect: "none",
+                            gap: 40,
+                            flexWrap: "wrap", // wrap on small screens
                         }}
                     >
-                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        {/* Completed total */}
+
+                        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                             <span
                                 role="img"
                                 aria-label="visits"
                                 style={{
-                                    fontSize: 28,
-                                    color: "#1976d2",
+                                    fontSize: 32,
+                                    color: primaryColor,
                                 }}
                             >
                                 📅
@@ -436,44 +538,88 @@ export default function Finance({ token }) {
                             <div>
                                 <div
                                     style={{
-                                        fontSize: 20,
-                                        fontWeight: "700",
-                                        color: "#1976d2",
+                                        fontSize: 24,
+                                        fontWeight: 700,
+                                        color: primaryColor,
                                         lineHeight: 1.1,
                                     }}
                                 >
                                     {visits.length}
                                 </div>
-                                <div style={{ fontSize: 14, color: "#555" }}>Total Visits</div>
+                                <div style={{ fontSize: 15, color: "#666" }}>Total Visits</div>
                             </div>
                         </div>
 
-                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                             <span
                                 role="img"
-                                aria-label="amount"
-                                style={{
-                                    fontSize: 28,
-                                    color: "#4caf50",
-                                }}
+                                aria-label="completed"
+                                style={{ fontSize: 32, color: primaryColor }}
                             >
-                                💰
+                                ✅
                             </span>
                             <div>
-                                <div
-                                    style={{
-                                        fontSize: 20,
-                                        fontWeight: "700",
-                                        color: "#4caf50",
-                                        lineHeight: 1.1,
-                                    }}
-                                >
-                                    ${totalSum.toFixed(2)}
+                                <div style={{ fontSize: 24, fontWeight: 700, color: primaryColor, lineHeight: 1.1 }}>
+                                    ${totalCompletedAmount.toFixed(2)}
                                 </div>
-                                <div style={{ fontSize: 14, color: "#555" }}>Total Amount</div>
+                                <div style={{ fontSize: 15, color: "#666" }}>Completed (All)</div>
                             </div>
                         </div>
+
+                        {/* Paid amount */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                            <span
+                                role="img"
+                                aria-label="paid"
+                                style={{ fontSize: 32, color: successColor }}
+                            >
+                                💵
+                            </span>
+                            <div>
+                                <div style={{ fontSize: 24, fontWeight: 700, color: successColor, lineHeight: 1.1 }}>
+                                    ${totalPaidAmount.toFixed(2)}
+                                </div>
+                                <div style={{ fontSize: 15, color: "#666" }}>Paid</div>
+                            </div>
+                        </div>
+
+                        {/* Unpaid amount */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                            <span
+                                role="img"
+                                aria-label="unpaid"
+                                style={{ fontSize: 32, color: warningColor }}
+                            >
+                                🕓
+                            </span>
+                            <div>
+                                <div style={{ fontSize: 24, fontWeight: 700, color: warningColor, lineHeight: 1.1 }}>
+                                    ${totalUnpaidAmount.toFixed(2)}
+                                </div>
+                                <div style={{ fontSize: 15, color: "#666" }}>Unpaid</div>
+                            </div>
+                        </div>
+
+                        {/* Pending amount */}
+                        {/* Pending count */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                            <span
+                                role="img"
+                                aria-label="pending"
+                                style={{ fontSize: 32, color: warningColor }}
+                            >
+                                ⏳
+                            </span>
+                            <div>
+                                <div style={{ fontSize: 24, fontWeight: 700, color: warningColor, lineHeight: 1.1 }}>
+                                    {totalPendingCount}
+                                </div>
+                                <div style={{ fontSize: 15, color: "#666" }}>Pending Visits</div>
+                            </div>
+                        </div>
+
                     </div>
+
                 </>
             )}
         </div>

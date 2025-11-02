@@ -2,9 +2,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import api from "../api";
 
-import { FaUserMd, FaCalendarAlt, FaStethoscope, FaSignOutAlt } from "react-icons/fa";
 import { FaUserCircle } from "react-icons/fa";
-
 
 export default function Patient({ token }) {
   const [doctors, setDoctors] = useState([]);
@@ -12,7 +10,6 @@ export default function Patient({ token }) {
   const [selected, setSelected] = useState({ doctorId: "", date: "", time: "" });
   const [patient, setPatient] = useState(null);
   const [reservedSlots, setReservedSlots] = useState([]); // store reserved slots
-
 
   useEffect(() => {
     const fetchPatient = async () => {
@@ -32,37 +29,48 @@ export default function Patient({ token }) {
 
   // After fetching doctors
   useEffect(() => {
-    const fetchDoctors = async () => {
-      try {
-        const res = await api.get("/doctors", {
-          headers: { Authorization: token },
-        });
-        setDoctors(res.data);
+    if (token) {
+      fetchDoctors();
 
-        // Collect all reserved slots from DB into reservedSlots state
-        const allReserved = [];
-        res.data.forEach((doc) => {
-          doc.schedule.forEach((day) => {
-            day.reservedSlots.forEach((slot) => {
-              allReserved.push({
-                doctorId: doc.id,
-                date: day.date,
-                time: slot,
-              });
+      // optional: refresh every 5 minutes
+      const interval = setInterval(() => {
+        fetchDoctors();
+      }, 5 * 60 * 1000);
+
+      return () => clearInterval(interval);
+    }
+  }, [token]);
+
+
+  const fetchDoctors = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get("/doctors", {
+        headers: { Authorization: token },
+      });
+      setDoctors(res.data);
+
+      const allReserved = [];
+      res.data.forEach((doc) => {
+        doc.schedule.forEach((day) => {
+          day.reservedSlots.forEach((slotObj) => {
+            allReserved.push({
+              doctorId: doc.id,
+              date: day.date,
+              time: slotObj.time,
+              patientId: slotObj.patient || null,
             });
           });
         });
-        setReservedSlots(allReserved);
+      });
 
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchDoctors();
-  }, [token]);
-
+      setReservedSlots(allReserved);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
 
   const reserveVisit = async () => {
@@ -71,17 +79,44 @@ export default function Patient({ token }) {
       return;
     }
     try {
-      await api.post("/visit/reserve", selected, {
+      const res = await api.post("/visit/reserve", selected, {
         headers: { Authorization: token },
       });
-      alert("Visit reserved successfully!");
 
-      // add the reserved slot to state
+      alert(res.data.msg || "Visit reserved successfully!");
+
+      // Update reservedSlots locally
       setReservedSlots((prev) => [
         ...prev,
-        { doctorId: selected.doctorId, date: selected.date, time: selected.time },
+        {
+          doctorId: selected.doctorId,
+          date: selected.date,
+          time: selected.time,
+          patientId: patient?._id,
+        },
       ]);
 
+      // Update doctors schedules locally
+      setDoctors((prevDoctors) =>
+        prevDoctors.map((doc) => {
+          if (doc.id === selected.doctorId) {
+            return {
+              ...doc,
+              schedule: doc.schedule.map((day) => {
+                if (day.date === selected.date) {
+                  return {
+                    ...day,
+                    availableSlots: day.availableSlots.filter((s) => s !== selected.time),
+                    reservedSlots: [...day.reservedSlots, { time: selected.time, patient: patient?._id }],
+                  };
+                }
+                return day;
+              }),
+            };
+          }
+          return doc;
+        })
+      );
 
       setSelected({ doctorId: "", date: "", time: "" });
     } catch (err) {
@@ -89,6 +124,59 @@ export default function Patient({ token }) {
     }
   };
 
+  const cancelReservation = async () => {
+    if (!selected.doctorId || !selected.date || !selected.time) {
+      alert("Select the slot you want to cancel");
+      return;
+    }
+
+    try {
+      const res = await api.post("/visit/cancel", selected, {
+        headers: { Authorization: token },
+      });
+
+      alert(res.data.msg || "Reservation cancelled ✅");
+
+      // Update reservedSlots locally
+      setReservedSlots((prev) =>
+        prev.filter(
+          (r) =>
+            !(
+              r.doctorId === selected.doctorId &&
+              r.date === selected.date &&
+              r.time === selected.time
+            )
+        )
+      );
+
+      // Update doctors schedules locally
+      setDoctors((prevDoctors) =>
+        prevDoctors.map((doc) => {
+          if (doc.id === selected.doctorId) {
+            return {
+              ...doc,
+              schedule: doc.schedule.map((day) => {
+                if (day.date === selected.date) {
+                  return {
+                    ...day,
+                    availableSlots: [...day.availableSlots, selected.time].sort(),
+                    reservedSlots: day.reservedSlots.filter((slot) => slot.time !== selected.time),
+                  };
+                }
+                return day;
+              }),
+            };
+          }
+          return doc;
+        })
+      );
+
+      setSelected({ doctorId: "", date: "", time: "" });
+    } catch (err) {
+      console.error("Cancel API error:", err);
+      alert(err.response?.data?.msg || "Failed to cancel");
+    }
+  };
 
   if (loading)
     return (
@@ -105,6 +193,15 @@ export default function Patient({ token }) {
         Loading doctors...
       </div>
     );
+
+  // <<=== Define selectedIsMyReservation here, at the top level in component
+  const selectedIsMyReservation = reservedSlots.some(
+    (r) =>
+      r.doctorId === selected.doctorId &&
+      r.date === selected.date &&
+      r.time === selected.time &&
+      r.patientId === patient?._id
+  );
 
   return (
     <div
@@ -171,13 +268,7 @@ export default function Patient({ token }) {
           <FaUserCircle style={{ color: "#1976d2" }} size={30} />
           Welcome, {patient?.name || "Patient"}!!
         </h1>
-
-
       </motion.div>
-
-
-
-
 
       {/* Doctors List */}
       {doctors.map((doc) => (
@@ -200,8 +291,8 @@ export default function Patient({ token }) {
           </h3>
 
           {doc.schedule.map((day) => {
-            // Merge available + reserved slots
-            const allSlots = [...day.availableSlots, ...day.reservedSlots];
+            const reservedTimes = day.reservedSlots.map((s) => s.time);
+            const allSlots = [...day.availableSlots, ...reservedTimes];
 
             return (
               <div key={day.date} style={{ marginBottom: 12 }}>
@@ -213,52 +304,47 @@ export default function Patient({ token }) {
                       selected.date === day.date &&
                       selected.time === slot;
 
-                    const isReserved =
-                      day.reservedSlots.includes(slot) || // reserved in DB
-                      reservedSlots.some(
-                        (r) =>
-                          r.doctorId === doc.id &&
-                          r.date === day.date &&
-                          r.time === slot
-                      );
+                    const isReserved = day.reservedSlots.some((s) => s.time === slot);
+                    const reservedByUser = reservedSlots.some(
+                      (r) =>
+                        r.doctorId === doc.id &&
+                        r.date === day.date &&
+                        r.time === slot &&
+                        r.patientId === patient?._id
+                    );
 
                     return (
                       <button
                         key={slot}
-                        disabled={isReserved}
-                        onClick={() =>
-                          !isReserved &&
-                          setSelected({ doctorId: doc.id, date: day.date, time: slot })
-                        }
+                        disabled={isReserved && !reservedByUser}
+                        onClick={() => setSelected({ doctorId: doc.id, date: day.date, time: slot })}
                         style={{
                           margin: 4,
                           padding: "6px 12px",
                           borderRadius: 10,
                           border: "none",
-                          background: isReserved
-                            ? "#e53935" // red for reserved
-                            : isSelected
-                              ? "#4caf50" // green for selected
-                              : "#e3f2fd", // blue-ish default
-                          color: isReserved || isSelected ? "#fff" : "#1976d2",
+                          background: reservedByUser
+                            ? "#4caf50" // green
+                            : isReserved
+                              ? "#e53935" // red
+                              : isSelected
+                                ? "#1565c0" // blue only BEFORE reserve
+                                : "#e3f2fd",
+                          color: reservedByUser || isReserved || isSelected ? "#fff" : "#1976d2",
+                          cursor: isReserved && !reservedByUser ? "not-allowed" : "pointer",
                           fontWeight: 500,
-                          cursor: isReserved ? "not-allowed" : "pointer",
                           transition: "0.2s",
                         }}
                         onMouseEnter={(e) =>
                           !isReserved &&
-                          (e.currentTarget.style.background = isSelected
-                            ? "#388e3c"
-                            : "#bbdefb")
+                          (e.currentTarget.style.background = isSelected ? "#1565c0" : "#bbdefb")
                         }
                         onMouseLeave={(e) =>
                           !isReserved &&
-                          (e.currentTarget.style.background = isSelected
-                            ? "#4caf50"
-                            : "#e3f2fd")
+                          (e.currentTarget.style.background = isSelected ? "#1976d2" : "#e3f2fd")
                         }
                       >
-                        {slot} {isReserved && "(Reserved)"}
+                        {slot} {reservedByUser ? "(You Reserved)" : isReserved ? "(Reserved)" : ""}
                       </button>
                     );
                   })}
@@ -269,40 +355,62 @@ export default function Patient({ token }) {
         </motion.div>
       ))}
 
-
-      {/* Reserve Button */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        style={{
-          position: "sticky",
-          bottom: 20,
-          textAlign: "center",
-          zIndex: 1000,
-        }}
-      >
-        <button
-          onClick={reserveVisit}
+      {/* Reserve / Cancel Button */}
+      {selected.time && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
           style={{
-            padding: "12px 24px",
-            fontSize: 16,
-            fontWeight: 600,
-            borderRadius: 14,
-            border: "none",
-            background: "#1976d2",
-            color: "#fff",
-            cursor: "pointer",
-            boxShadow: "0 6px 15px rgba(0,0,0,0.2)",
-            transition: "0.3s",
+            position: "sticky",
+            bottom: 20,
+            textAlign: "center",
+            zIndex: 1000,
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "#1565c0")}
-          onMouseLeave={(e) => (e.currentTarget.style.background = "#1976d2")}
         >
-          Reserve Visit
-        </button>
-      </motion.div>
-
+          {selectedIsMyReservation ? (
+            <button
+              onClick={cancelReservation}
+              style={{
+                padding: "12px 24px",
+                fontSize: 16,
+                fontWeight: 600,
+                borderRadius: 14,
+                border: "none",
+                background: "#e53935",
+                color: "#fff",
+                cursor: "pointer",
+                boxShadow: "0 6px 15px rgba(0,0,0,0.2)",
+                transition: "0.3s",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "#c62828")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "#e53935")}
+            >
+              Cancel Reservation ❌
+            </button>
+          ) : (
+            <button
+              onClick={reserveVisit}
+              style={{
+                padding: "12px 24px",
+                fontSize: 16,
+                fontWeight: 600,
+                borderRadius: 14,
+                border: "none",
+                background: "#1976d2",
+                color: "#fff",
+                cursor: "pointer",
+                boxShadow: "0 6px 15px rgba(0,0,0,0.2)",
+                transition: "0.3s",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "#1565c0")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "#1976d2")}
+            >
+              Reserve Visit
+            </button>
+          )}
+        </motion.div>
+      )}
 
       {/* Motivational Banner */}
       <motion.div
@@ -311,17 +419,16 @@ export default function Patient({ token }) {
         transition={{ duration: 0.8 }}
         style={{
           margin: "50px 0 35px 0",
-          textAlign: "center", // or center if you like
+          textAlign: "center",
           fontFamily: "'Oleo Script', cursive",
           fontSize: 18,
           fontWeight: 300,
-          color: "#3a95df", // text color instead of background
+          color: "#3a95df",
           letterSpacing: "0.7px",
         }}
       >
         Your health journey starts here — choose the best doctor for you!
       </motion.div>
-
     </div>
   );
 }
