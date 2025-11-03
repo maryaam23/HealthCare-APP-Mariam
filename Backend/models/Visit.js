@@ -8,8 +8,8 @@ const visitSchema = new mongoose.Schema({
     problem: { type: String, default: "" },
     treatments: [{ name: String, cost: Number }],
     totalAmount: Number,
-    status: { type: String, enum: ["pending", "in-progress", "completed", "cancelled"], default: "pending" },
-    paid: { type: Boolean, default: false }, // <-- add this field, false means unpaid by default
+    status: { type: String, enum: ["pending", "completed", "cancelled"], default: "pending" },
+    paid: { type: Boolean, default: false }, 
     createdAt: { type: Date, default: Date.now }
 });
 

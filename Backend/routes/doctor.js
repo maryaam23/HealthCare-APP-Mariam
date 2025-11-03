@@ -16,7 +16,8 @@ function generateSlots() {
   return slots;
 }
 
-// ✅ Updated route
+// allows a logged-in patient to get a list of all doctors along with their schedules for the next 7 working days.
+
 router.get("/", authMiddleware(["patient"]), async (req, res) => {
   try {
     const doctors = await User.find({ role: "doctor" });
@@ -37,7 +38,7 @@ router.get("/", authMiddleware(["patient"]), async (req, res) => {
       for (const day of nextDays) {
         const dateStr = day.toISOString().split("T")[0];
 
-        // ✅ Get saved schedule from DB
+        //  Get saved schedule from DB
         const schedule = await DoctorSchedule.findOne({
           doctor: doc._id,
           date: dateStr,

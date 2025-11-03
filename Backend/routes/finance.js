@@ -1,20 +1,24 @@
 const express = require("express");
 const router = express.Router();
-const Visit = require("../models/Visit");
+const Visit = require("../models/Visit");  
 const mongoose = require("mongoose");
 const authMiddleware = require("../middleware/authMiddleware");
 
 
+// PATCH route: update payment status of a visit
+// Only accessible by finance route
 router.patch("/update-paid/:id", authMiddleware(["finance"]), async (req, res) => {
     try {
         const { paid } = req.body;
-        const visit = await Visit.findById(req.params.id);
+        const visit = await Visit.findById(req.params.id); // Find visit by ID
         if (!visit) return res.status(404).json({ msg: "Visit not found" });
 
+        // Only allow updating payment if visit stutus = completed
         if (visit.status !== "completed") {
             return res.status(400).json({ msg: "Only completed visits can be marked as paid" });
         }
 
+        // Update the paid field and save changes to DB
         visit.paid = paid;
         await visit.save();
 
@@ -25,6 +29,9 @@ router.patch("/update-paid/:id", authMiddleware(["finance"]), async (req, res) =
     }
 });
 
+// GET route: fetch visits
+// Allows filtering by doctor name, patient name, visit ID, status, and sorting
+// Only accessible by finance role
 
 router.get("/visits", authMiddleware(["finance"]), async (req, res) => {
     try {
@@ -36,7 +43,7 @@ router.get("/visits", authMiddleware(["finance"]), async (req, res) => {
             }
 
             const visit = await Visit.findById(visitId)
-                .populate("doctor", "name email")
+                .populate("doctor", "name email")    // replaces the ID with the actual object data
                 .populate("patient", "name email");
 
             if (!visit) {
@@ -87,8 +94,7 @@ router.get("/visits", authMiddleware(["finance"]), async (req, res) => {
             aggregatePipeline.push({ $match: { $and: andConditions } });
         }
 
-        // Handle sorting
-        // Add this just before sorting
+        
         aggregatePipeline.push({
             $addFields: {
                 dateTime: {
@@ -152,7 +158,7 @@ router.get("/visits", authMiddleware(["finance"]), async (req, res) => {
         }
 
 
-        // Project fields to send
+        
         aggregatePipeline.push({
             $project: {
                 _id: 1,
@@ -162,7 +168,7 @@ router.get("/visits", authMiddleware(["finance"]), async (req, res) => {
                 treatments: 1,
                 totalAmount: 1,
                 status: 1,
-                paid: 1,           // <--- ADD THIS LINE
+                paid: 1,        
                 createdAt: 1,
                 "doctor._id": 1,
                 "doctor.name": 1,
@@ -185,8 +191,3 @@ router.get("/visits", authMiddleware(["finance"]), async (req, res) => {
 
 
 module.exports = router;
-
-
-//git add .
-//git commit -m "Initial commit: add backend and frontend"
-//git push -u origin main

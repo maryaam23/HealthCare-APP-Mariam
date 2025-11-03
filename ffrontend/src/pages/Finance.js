@@ -1,5 +1,12 @@
 import { useState, useEffect } from "react";
 import api from "../api";
+import { motion } from "framer-motion";
+
+
+
+
+
+
 
 export default function Finance({ token }) {
     const [filters, setFilters] = useState({
@@ -11,7 +18,7 @@ export default function Finance({ token }) {
     });
     const [visits, setVisits] = useState([]);
     const [loading, setLoading] = useState(false);
-
+    const [notification, setNotification] = useState({ type: "", message: "" });
     const isValidVisitId = (id) => /^[a-fA-F0-9]{24}$/.test(id);
 
     useEffect(() => {
@@ -32,7 +39,7 @@ export default function Finance({ token }) {
                 });
                 setVisits(res.data);
             } catch (err) {
-                alert(err.response?.data?.msg || "Failed to fetch visits");
+                 showNotification("error", err.response?.data?.msg || "Failed to fetch visits");
             } finally {
                 setLoading(false);
             }
@@ -56,6 +63,12 @@ export default function Finance({ token }) {
         });
     };
 
+    const showNotification = (type, message) => {
+        setNotification({ type, message });
+        // Auto hide after 3 seconds
+        setTimeout(() => setNotification({ type: "", message: "" }), 3000);
+    };
+
 
 
     // Sum total amounts for completed visits (all, paid, unpaid)
@@ -63,16 +76,11 @@ export default function Finance({ token }) {
     const totalCompletedAmount = completedVisits.reduce((sum, v) => sum + (v.totalAmount || 0), 0);
     const totalPaidAmount = completedVisits.reduce((sum, v) => sum + ((v.paid && v.totalAmount) || 0), 0);
     const totalUnpaidAmount = completedVisits.reduce((sum, v) => sum + ((!v.paid && v.totalAmount) || 0), 0);
-
-
+    const totalCancelledCount = visits.filter(v => v.status === "cancelled").length;
     const totalPendingCount = visits.filter(v => v.status === "pending").length;
-
-
-
-
-
-
     const totalSum = visits.reduce((sum, visit) => sum + (visit.totalAmount || 0), 0);
+    const totalCompletedCount = visits.filter(v => v.status === "completed").length;
+
 
     // Colors & shadows variables
     const primaryColor = "#1E88E5"; // Blue 600
@@ -97,6 +105,33 @@ export default function Finance({ token }) {
                 userSelect: "none",
             }}
         >
+            {/* Notification */}
+            {notification.message && (
+                <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.4 }}
+                    style={{
+                        position: "fixed",
+                        top: 20,
+                        right: 20,
+                        background: notification.type === "success" ? "#43A047" : "#E53935",
+                        color: "#fff",
+                        padding: "12px 20px",
+                        borderRadius: 12,
+                        boxShadow: "0 5px 15px rgba(0,0,0,0.2)",
+                        zIndex: 9999,
+                        fontWeight: 500,
+                        minWidth: 250,
+                        textAlign: "center",
+                        fontFamily: "'Poppins', sans-serif",
+                    }}
+                >
+                    {notification.message}
+                </motion.div>
+            )}
+
             <h2
                 style={{
                     color: primaryColor,
@@ -204,9 +239,10 @@ export default function Finance({ token }) {
                 >
                     <option value="">All Statuses</option>
                     <option value="pending">Pending</option>
-                    
                     <option value="completed">Completed</option>
+                    <option value="cancelled">Cancelled</option> {/* Added */}
                 </select>
+
 
                 <select
                     name="sortBy"
@@ -484,7 +520,7 @@ export default function Finance({ token }) {
                                                             )
                                                         );
                                                     } catch (error) {
-                                                        alert(error.response?.data?.msg || "Failed to update payment status");
+                                                        showNotification("error", error.response?.data?.msg || "Failed to update payment status");
                                                     }
                                                 }}
                                                 style={{
@@ -506,7 +542,7 @@ export default function Finance({ token }) {
 
                     <div
                         style={{
-                            marginTop: 38,
+                            marginTop: 30,
                             padding: "24px 36px",
                             backgroundColor: cardBg,
                             borderRadius,
@@ -514,14 +550,18 @@ export default function Finance({ token }) {
                             display: "flex",
                             justifyContent: "space-around",
                             alignItems: "center",
-                            maxWidth: 1200,
+                            maxWidth: 1500,
                             marginLeft: "auto",
                             marginRight: "auto",
                             userSelect: "none",
                             gap: 40,
-                            flexWrap: "wrap", // wrap on small screens
+                            flexWrap: "wrap",
+                            marginBottom: 50,
+
                         }}
                     >
+
+
                         {/* Completed total */}
 
                         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
@@ -529,7 +569,7 @@ export default function Finance({ token }) {
                                 role="img"
                                 aria-label="visits"
                                 style={{
-                                    fontSize: 32,
+                                    fontSize: 28,
                                     color: primaryColor,
                                 }}
                             >
@@ -538,7 +578,7 @@ export default function Finance({ token }) {
                             <div>
                                 <div
                                     style={{
-                                        fontSize: 24,
+                                        fontSize: 20,
                                         fontWeight: 700,
                                         color: primaryColor,
                                         lineHeight: 1.1,
@@ -546,23 +586,76 @@ export default function Finance({ token }) {
                                 >
                                     {visits.length}
                                 </div>
-                                <div style={{ fontSize: 15, color: "#666" }}>Total Visits</div>
+                                <div style={{ fontSize: 14, color: "#666" }}>Total Visits</div>
                             </div>
                         </div>
+
+
+
+                        {/* Pending amount */}
+                        {/* Pending count */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                            <span
+                                role="img"
+                                aria-label="pending"
+                                style={{ fontSize: 28, color: warningColor }}
+                            >
+                                ⏳
+                            </span>
+                            <div>
+                                <div style={{ fontSize: 20, fontWeight: 700, color: warningColor, lineHeight: 1.1 }}>
+                                    {totalPendingCount}
+                                </div>
+                                <div style={{ fontSize: 14, color: "#666" }}>Pending Visits</div>
+                            </div>
+                        </div>
+                        {/* Cancelled Visits */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                            <span
+                                role="img"
+                                aria-label="cancelled"
+                                style={{ fontSize: 28, color: errorColor }}
+                            >
+                                ❌
+                            </span>
+                            <div>
+                                <div style={{ fontSize: 20, fontWeight: 700, color: errorColor, lineHeight: 1.1 }}>
+                                    {totalCancelledCount}
+                                </div>
+                                <div style={{ fontSize: 14, color: "#666" }}>Cancelled Visits</div>
+                            </div>
+                        </div>
+                        {/* Completed Visits Count */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                            <span
+                                role="img"
+                                aria-label="completed visits"
+                                style={{ fontSize: 28, color: successColor }}
+                            >
+                                ✅
+                            </span>
+                            <div>
+                                <div style={{ fontSize: 20, fontWeight: 700, color: successColor, lineHeight: 1.1 }}>
+                                    {totalCompletedCount}
+                                </div>
+                                <div style={{ fontSize: 14, color: "#666" }}>Completed Visits</div>
+                            </div>
+                        </div>
+
 
                         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                             <span
                                 role="img"
                                 aria-label="completed"
-                                style={{ fontSize: 32, color: primaryColor }}
+                                style={{ fontSize: 28, color: primaryColor }}
                             >
                                 ✅
                             </span>
                             <div>
-                                <div style={{ fontSize: 24, fontWeight: 700, color: primaryColor, lineHeight: 1.1 }}>
+                                <div style={{ fontSize: 20, fontWeight: 700, color: primaryColor, lineHeight: 1.1 }}>
                                     ${totalCompletedAmount.toFixed(2)}
                                 </div>
-                                <div style={{ fontSize: 15, color: "#666" }}>Completed (All)</div>
+                                <div style={{ fontSize: 14, color: "#666" }}>Completed (All)</div>
                             </div>
                         </div>
 
@@ -571,15 +664,15 @@ export default function Finance({ token }) {
                             <span
                                 role="img"
                                 aria-label="paid"
-                                style={{ fontSize: 32, color: successColor }}
+                                style={{ fontSize: 28, color: successColor }}
                             >
                                 💵
                             </span>
                             <div>
-                                <div style={{ fontSize: 24, fontWeight: 700, color: successColor, lineHeight: 1.1 }}>
+                                <div style={{ fontSize: 20, fontWeight: 700, color: successColor, lineHeight: 1.1 }}>
                                     ${totalPaidAmount.toFixed(2)}
                                 </div>
-                                <div style={{ fontSize: 15, color: "#666" }}>Paid</div>
+                                <div style={{ fontSize: 14, color: "#666" }}>Paid</div>
                             </div>
                         </div>
 
@@ -588,35 +681,19 @@ export default function Finance({ token }) {
                             <span
                                 role="img"
                                 aria-label="unpaid"
-                                style={{ fontSize: 32, color: warningColor }}
+                                style={{ fontSize: 28, color: warningColor }}
                             >
                                 🕓
                             </span>
                             <div>
-                                <div style={{ fontSize: 24, fontWeight: 700, color: warningColor, lineHeight: 1.1 }}>
+                                <div style={{ fontSize: 20, fontWeight: 700, color: warningColor, lineHeight: 1.1 }}>
                                     ${totalUnpaidAmount.toFixed(2)}
                                 </div>
-                                <div style={{ fontSize: 15, color: "#666" }}>Unpaid</div>
+                                <div style={{ fontSize: 14, color: "#666" }}>Unpaid</div>
                             </div>
                         </div>
 
-                        {/* Pending amount */}
-                        {/* Pending count */}
-                        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                            <span
-                                role="img"
-                                aria-label="pending"
-                                style={{ fontSize: 32, color: warningColor }}
-                            >
-                                ⏳
-                            </span>
-                            <div>
-                                <div style={{ fontSize: 24, fontWeight: 700, color: warningColor, lineHeight: 1.1 }}>
-                                    {totalPendingCount}
-                                </div>
-                                <div style={{ fontSize: 15, color: "#666" }}>Pending Visits</div>
-                            </div>
-                        </div>
+
 
                     </div>
 

@@ -3,6 +3,11 @@ import { motion } from "framer-motion";
 import { FaUserMd, FaCalendarAlt, FaStethoscope, FaSignOutAlt } from "react-icons/fa";
 import api from "../api";
 import { useState, useEffect, useRef } from "react";
+import { FaTrash } from "react-icons/fa";
+
+
+
+
 
 
 
@@ -33,6 +38,7 @@ export default function Doctor({ token }) {
   const [selectedDate, setSelectedDate] = useState(null);
   const [doctor, setDoctor] = useState(null);
   const treatmentsRef = useRef(null);
+  const [notification, setNotification] = useState({ type: "", message: "" });
 
 
   useEffect(() => {
@@ -99,24 +105,40 @@ export default function Doctor({ token }) {
   };
 
   const submit = async () => {
-    try {
-      if (!problem.trim()) {
-        alert("Please enter the patient's problem or diagnosis.");
+    // Check if problem is empty
+    if (!problem.trim()) {
+      showNotification("error", "Please enter the patient's problem or diagnosis.");
+      return;
+    }
+
+    // Check if any treatment has empty name or cost
+    for (let i = 0; i < treatments.length; i++) {
+      const t = treatments[i];
+      if (!t.name.trim()) {
+        showNotification("error", `Treatment #${i + 1} name is required.`);
         return;
       }
+      if (!t.cost || t.cost <= 0) {
+        showNotification("error", `Treatment #${i + 1} cost must be greater than 0.`);
+        return;
+      }
+    }
 
+    try {
       await api.post(
         `/visit/add-treatments/${visitId}`,
         { problem, treatments },
         { headers: { Authorization: token } }
       );
-      alert("Treatments and problem added successfully!");
+      showNotification("success", "Treatments and problem added successfully!");
+
+      // Reset form
       await fetchVisits();
       setVisitId("");
       setProblem("");
       setTreatments([{ name: "", cost: 0 }]);
     } catch (err) {
-      alert(err.response?.data?.msg || "Failed to add treatments");
+      showNotification("error", err.response?.data?.msg || "Failed to add treatments");
     }
   };
 
@@ -140,6 +162,17 @@ export default function Doctor({ token }) {
     return visits.filter((v) => v.date.split("T")[0] === dateStr);
   };
 
+  const showNotification = (type, message) => {
+    setNotification({ type, message });
+    // Auto hide after 3 seconds
+    setTimeout(() => setNotification({ type: "", message: "" }), 3000);
+  };
+
+  const removeTreatment = (index) => {
+    const updated = treatments.filter((_, i) => i !== index);
+    setTreatments(updated);
+  };
+
 
   return (
 
@@ -155,6 +188,33 @@ export default function Doctor({ token }) {
       backgroundPosition: "right bottom",
       backgroundSize: "450px",
     }}>
+      {/* Notification */}
+      {notification.message && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          transition={{ duration: 0.4 }}
+          style={{
+            position: "fixed",
+            top: 20,
+            right: 20,
+            background: notification.type === "success" ? "#43A047" : "#E53935",
+            color: "#fff",
+            padding: "12px 20px",
+            borderRadius: 12,
+            boxShadow: "0 5px 15px rgba(0,0,0,0.2)",
+            zIndex: 9999,
+            fontWeight: 500,
+            minWidth: 250,
+            textAlign: "center",
+            fontFamily: "'Poppins', sans-serif",
+          }}
+        >
+          {notification.message}
+        </motion.div>
+      )}
+
 
 
       {/* Welcome Message */}
@@ -347,6 +407,10 @@ export default function Doctor({ token }) {
                     const dayVisits = getVisitsForDate(day);
                     const completed = dayVisits.filter((v) => v.status === "completed").length;
                     const pending = dayVisits.filter((v) => v.status !== "completed").length;
+
+                    const cancelled = visits.filter(v => v.status === "cancelled");
+
+
                     const total = dayVisits.length;
 
                     return (
@@ -471,13 +535,18 @@ export default function Doctor({ token }) {
                           ? "green"
                           : v.status === "cancelled"
                             ? "red"
-                            : "black",
+                            : "red",
                       fontWeight: "bold",
                     }}
                   >
-                    {v.status}
+                    {v.status === "completed"
+                      ? "✅ Completed"
+                      : v.status === "cancelled"
+                        ? "❌ Cancelled"
+                        : "⏳ Pending"}
                   </span>
                 </p>
+
 
                 {v.problem && (
                   <p>
@@ -501,15 +570,14 @@ export default function Doctor({ token }) {
                   </div>
                 )}
 
-                {v.status === "completed" ? (
-                  <p style={{ color: "green", fontWeight: "bold", marginTop: 5 }}>
-                    ✅ Completed
-                  </p>
-                ) : (
+                {/* Remove this whole conditional block for Completed/Cancelled/Pending */}
+                {/* Keep only the Add Treatments button for pending visits */}
+
+                {v.status === "pending" && (
                   <button
                     onClick={() => {
-                      setVisitId(v._id);         // set current visit ID so form shows
-                      setSelectedVisit(v);       // set selected visit data
+                      setVisitId(v._id);
+                      setSelectedVisit(v);
                       setTimeout(() => {
                         treatmentsRef.current?.scrollIntoView({ behavior: "smooth" });
                       }, 100);
@@ -526,8 +594,10 @@ export default function Doctor({ token }) {
                   >
                     Add Treatments
                   </button>
-
                 )}
+
+
+
               </motion.div>
             ))
           )}
@@ -647,6 +717,7 @@ export default function Doctor({ token }) {
                 border: "1px solid #1976d2",
                 boxShadow: "0 4px 15px rgba(0,0,0,0.05)",
                 alignItems: "flex-start",
+                position: "relative", // needed for absolute positioning of trash icon
               }}
             >
               {/* Treatment Name */}
@@ -688,8 +759,24 @@ export default function Doctor({ token }) {
                   }}
                 />
               </div>
+
+              {/* Trash Icon */}
+              {treatments.length > 1 && (
+                <FaTrash
+                  onClick={() => removeTreatment(i)}
+                  style={{
+                    color: "#e53935",
+                    cursor: "pointer",
+                    alignSelf: "center",
+                    marginLeft: "auto",
+                    fontSize: 20,
+                  }}
+                  title="Remove this treatment"
+                />
+              )}
             </motion.div>
           ))}
+
 
           {/* Action Buttons */}
           <div style={{ marginTop: 10, display: "flex", gap: 15 }}>

@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import api from "../api";
-
 import { FaUserCircle } from "react-icons/fa";
 
 export default function Patient({ token }) {
@@ -10,6 +9,9 @@ export default function Patient({ token }) {
   const [selected, setSelected] = useState({ doctorId: "", date: "", time: "" });
   const [patient, setPatient] = useState(null);
   const [reservedSlots, setReservedSlots] = useState([]); // store reserved slots
+  const [notification, setNotification] = useState({ type: "", message: "" });
+
+
 
   useEffect(() => {
     const fetchPatient = async () => {
@@ -59,12 +61,16 @@ export default function Patient({ token }) {
               date: day.date,
               time: slotObj.time,
               patientId: slotObj.patient || null,
+              status: slotObj.status || "pending", // include real status from DB
             });
           });
         });
       });
 
       setReservedSlots(allReserved);
+
+
+
     } catch (err) {
       console.error(err);
     } finally {
@@ -75,7 +81,7 @@ export default function Patient({ token }) {
 
   const reserveVisit = async () => {
     if (!selected.doctorId || !selected.date || !selected.time) {
-      alert("Select doctor, date, and time first");
+      showNotification("error", "⚠️ Please select doctor, date, and time first");
       return;
     }
     try {
@@ -83,7 +89,7 @@ export default function Patient({ token }) {
         headers: { Authorization: token },
       });
 
-      alert(res.data.msg || "Visit reserved successfully!");
+      showNotification("success", res.data.message || "Visit reserved successfully!");
 
       // Update reservedSlots locally
       setReservedSlots((prev) => [
@@ -93,6 +99,7 @@ export default function Patient({ token }) {
           date: selected.date,
           time: selected.time,
           patientId: patient?._id,
+          status: "pending",  // <-- include status
         },
       ]);
 
@@ -120,13 +127,13 @@ export default function Patient({ token }) {
 
       setSelected({ doctorId: "", date: "", time: "" });
     } catch (err) {
-      alert(err.response?.data?.msg || "Failed to reserve visit");
+      showNotification("error", err.response?.data?.msg || "Failed to reserve visit");
     }
   };
 
   const cancelReservation = async () => {
     if (!selected.doctorId || !selected.date || !selected.time) {
-      alert("Select the slot you want to cancel");
+      showNotification("error", "Select the slot you want to cancel");
       return;
     }
 
@@ -135,7 +142,7 @@ export default function Patient({ token }) {
         headers: { Authorization: token },
       });
 
-      alert(res.data.msg || "Reservation cancelled ✅");
+      showNotification("success", res.data.message || "Reservation cancelled ✅");
 
       // Update reservedSlots locally
       setReservedSlots((prev) =>
@@ -174,7 +181,7 @@ export default function Patient({ token }) {
       setSelected({ doctorId: "", date: "", time: "" });
     } catch (err) {
       console.error("Cancel API error:", err);
-      alert(err.response?.data?.msg || "Failed to cancel");
+      showNotification("error", err.response?.data?.msg || "Failed to cancel");
     }
   };
 
@@ -194,24 +201,63 @@ export default function Patient({ token }) {
       </div>
     );
 
-  // <<=== Define selectedIsMyReservation here, at the top level in component
-  const selectedIsMyReservation = reservedSlots.some(
+  // Define at top level inside the component
+  const selectedIsMyActiveReservation = reservedSlots.some(
     (r) =>
       r.doctorId === selected.doctorId &&
       r.date === selected.date &&
       r.time === selected.time &&
-      r.patientId === patient?._id
+      r.patientId === patient?._id &&
+      r.status !== "cancelled"
   );
 
+
+  const showNotification = (type, message) => {
+    setNotification({ type, message });
+    // Auto hide after 3 seconds
+    setTimeout(() => setNotification({ type: "", message: "" }), 3000);
+  };
+
+
   return (
+
     <div
       style={{
         fontFamily: "'Poppins', sans-serif",
         background: "linear-gradient(to right, #edf4faff, #e8f4ffff)",
         minHeight: "100vh",
-        padding: 30,
+        padding: "40px 20px",
       }}
     >
+      {/* Notification */}
+      {notification.message && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          transition={{ duration: 0.4 }}
+          style={{
+            position: "fixed",
+            top: 20,
+            right: 20,
+            background: notification.type === "success"
+              ? "linear-gradient(90deg, #43a047, #66bb6a)"
+              : "linear-gradient(90deg, #d32f2f, #ef5350)",
+            color: "#fff",
+            padding: "12px 20px",
+            borderRadius: 12,
+            boxShadow: "0 5px 15px rgba(0,0,0,0.2)",
+            zIndex: 9999,
+            fontWeight: 500,
+            minWidth: 250,
+            textAlign: "center",
+            fontFamily: "'Poppins', sans-serif",
+          }}
+        >
+          {notification.message}
+        </motion.div>
+      )}
+
       {/* Page Header */}
       <motion.div
         initial={{ opacity: 0, y: -15 }}
@@ -249,10 +295,15 @@ export default function Patient({ token }) {
           padding: "5px 15px",
           borderRadius: "16px",
           backdropFilter: "blur(10px)",
-          backgroundColor: "rgba(255,255,255,0.75)",
+
           boxShadow: "0 8px 20px rgba(0,0,0,0.15)",
           textAlign: "left",
-          maxWidth: "300px", // keeps box width controlled
+          maxWidth: 300,
+
+          backgroundColor: "rgba(255,255,255,0.9)",
+          borderLeft: "6px solid #1976d2",
+
+          // keeps box width controlled
         }}
       >
         <h1
@@ -278,13 +329,23 @@ export default function Patient({ token }) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
           style={{
-            background: "rgba(255,255,255,0.85)",
-            backdropFilter: "blur(10px)",
-            borderRadius: 16,
-            padding: 20,
-            marginBottom: 20,
-            boxShadow: "0 8px 20px rgba(0,0,0,0.15)",
+            background: "#fff",
+            borderRadius: 20,
+            padding: "24px 28px",
+            marginBottom: 25,
+            boxShadow: "0 6px 18px rgba(25,118,210,0.15)",
+            transition: "transform 0.2s ease, box-shadow 0.2s ease",
+            cursor: "default",
           }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "translateY(-3px)";
+            e.currentTarget.style.boxShadow = "0 10px 25px rgba(25,118,210,0.25)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "translateY(0)";
+            e.currentTarget.style.boxShadow = "0 6px 18px rgba(25,118,210,0.15)";
+          }}
+
         >
           <h3 style={{ fontSize: 22, fontWeight: 600, color: "#1976d2", marginBottom: 15 }}>
             {doc.name}
@@ -305,7 +366,7 @@ export default function Patient({ token }) {
                       selected.time === slot;
 
                     const isReserved = day.reservedSlots.some((s) => s.time === slot);
-                    const reservedByUser = reservedSlots.some(
+                    const slotRecord = reservedSlots.find(
                       (r) =>
                         r.doctorId === doc.id &&
                         r.date === day.date &&
@@ -313,39 +374,69 @@ export default function Patient({ token }) {
                         r.patientId === patient?._id
                     );
 
+                    const reservedByUser = slotRecord && slotRecord.status === "pending";
+                    const visitStatus = slotRecord?.status;
+                    // ✅ Move isPastSlot calculation here
+                    const isPastSlot = new Date(`${day.date}T${slot}:00`) <= new Date();
+
+
+
                     return (
                       <button
                         key={slot}
-                        disabled={isReserved && !reservedByUser}
+                        disabled={
+                          visitStatus === "cancelled" ||
+                          (isReserved && !reservedByUser) ||
+                          isPastSlot
+                        }
                         onClick={() => setSelected({ doctorId: doc.id, date: day.date, time: slot })}
                         style={{
                           margin: 4,
-                          padding: "6px 12px",
+                          padding: "8px 14px",
                           borderRadius: 10,
+                          fontSize: 12,
                           border: "none",
-                          background: reservedByUser
-                            ? "#4caf50" // green
-                            : isReserved
-                              ? "#e53935" // red
-                              : isSelected
-                                ? "#1565c0" // blue only BEFORE reserve
-                                : "#e3f2fd",
-                          color: reservedByUser || isReserved || isSelected ? "#fff" : "#1976d2",
-                          cursor: isReserved && !reservedByUser ? "not-allowed" : "pointer",
+                          fontWeight: "bold",
+                          background:
+                            visitStatus === "cancelled"
+                              ? "#9e9e9e" // gray for cancelled
+                              : isPastSlot
+                                ? "#b0bec5" // gray for past slot
+                                : reservedByUser
+                                  ? "#4caf50"
+                                  : isReserved
+                                    ? "#e53935"
+                                    : isSelected
+                                      ? "#1565c0"
+                                      : "#e3f2fd",
+                          color:
+                            visitStatus === "cancelled" || isPastSlot
+                              ? "#fff"
+                              : reservedByUser || isReserved || isSelected
+                                ? "#fff"
+                                : "#1976d2",
+                          cursor:
+                            visitStatus === "cancelled" || isPastSlot
+                              ? "not-allowed"
+                              : isReserved && !reservedByUser
+                                ? "not-allowed"
+                                : "pointer",
                           fontWeight: 500,
                           transition: "0.2s",
                         }}
-                        onMouseEnter={(e) =>
-                          !isReserved &&
-                          (e.currentTarget.style.background = isSelected ? "#1565c0" : "#bbdefb")
-                        }
-                        onMouseLeave={(e) =>
-                          !isReserved &&
-                          (e.currentTarget.style.background = isSelected ? "#1976d2" : "#e3f2fd")
-                        }
                       >
-                        {slot} {reservedByUser ? "(You Reserved)" : isReserved ? "(Reserved)" : ""}
+                        {slot}{" "}
+                        {visitStatus === "cancelled"
+                          ? "(Cancelled - You Did Not Attend ❌)"
+
+                          : reservedByUser
+                            ? "(You Reserved)"
+                            : isReserved
+                              ? "(Reserved)"
+                              : ""}
                       </button>
+
+
                     );
                   })}
                 </div>
@@ -355,6 +446,7 @@ export default function Patient({ token }) {
         </motion.div>
       ))}
 
+      {/* Reserve / Cancel Button */}
       {/* Reserve / Cancel Button */}
       {selected.time && (
         <motion.div
@@ -368,7 +460,7 @@ export default function Patient({ token }) {
             zIndex: 1000,
           }}
         >
-          {selectedIsMyReservation ? (
+          {selectedIsMyActiveReservation ? (
             <button
               onClick={cancelReservation}
               style={{
@@ -409,8 +501,11 @@ export default function Patient({ token }) {
               Reserve Visit
             </button>
           )}
+
+
         </motion.div>
       )}
+
 
       {/* Motivational Banner */}
       <motion.div
@@ -421,10 +516,15 @@ export default function Patient({ token }) {
           margin: "50px 0 35px 0",
           textAlign: "center",
           fontFamily: "'Oleo Script', cursive",
-          fontSize: 18,
+
           fontWeight: 300,
-          color: "#3a95df",
+
           letterSpacing: "0.7px",
+
+          fontSize: 20,
+          color: "#1976d2",
+          textShadow: "0 1px 3px rgba(25,118,210,0.2)",
+
         }}
       >
         Your health journey starts here — choose the best doctor for you!

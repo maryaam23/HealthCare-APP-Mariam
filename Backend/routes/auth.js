@@ -3,7 +3,11 @@ const router = express.Router();
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const authMiddleware = require("../middleware/authMiddleware");
 
+
+// This route to check if the email and password match a user in DB.
+// if valid, create a JWT token contain the user’s ID, role, and name.
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -28,9 +32,8 @@ router.post("/login", async (req, res) => {
   }
 });
 
-const authMiddleware = require("../middleware/authMiddleware");
 
-// Get logged-in user info
+// uses an authentication middleware to verify the token and allowed roles, then returns the user loginin data
 router.get("/me", authMiddleware(["doctor", "patient", "finance"]), async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select("-password"); // exclude password
