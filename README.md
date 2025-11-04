@@ -108,28 +108,29 @@ The **Doctor** interface allows medical professionals to efficiently manage thei
 ## Screenshots
 
 ### Login Page
-![Login Page](frontend/src/screenshots/HealthCare_LoginPage.png)
+![Login Page](ffrontend/src/screenshots/HealthCare_LoginPage.png)
 
 ### Patient Dashboard
-![Patient Page 1](frontend/src/screenshots/HealthCare_PatientPage_1.png)
-![Patient Page 2](frontend/src/screenshots/HealthCare_PatientPage_2.png)
-![Patient Page 3](frontend/src/screenshots/HealthCare_PatientPage_3.png)
+![Patient Page 1](ffrontend/src/screenshots/HealthCare_PatientPage_1.png)
+![Patient Page 2](ffrontend/src/screenshots/HealthCare_PatientPage_2.png)
+![Patient Page 3](ffrontend/src/screenshots/HealthCare_PatientPage_3.png)
 
 ### Doctor Dashboard
-![Doctor Page 1](frontend/src/screenshots/HealthCare_DoctorPage_1.png)
-![Doctor Page 2](frontend/src/screenshots/HealthCare_DoctorPage_2.png)
-![Doctor Page 3](frontend/src/screenshots/HealthCare_DoctorPage_3.png)
-![Doctor Page 4](frontend/src/screenshots/HealthCare_DoctorPage_4.png)
-![Doctor Page 5](frontend/src/screenshots/HealthCare_DoctorPage_5.png)
+![Doctor Page 1](ffrontend/src/screenshots/HealthCare_DoctorPage_1.png)
+![Doctor Page 2](ffrontend/src/screenshots/HealthCare_DoctorPage_2.png)
+![Doctor Page 3](ffrontend/src/screenshots/HealthCare_DoctorPage_3.png)
+![Doctor Page 4](ffrontend/src/screenshots/HealthCare_DoctorPage_4.png)
+![Doctor Page 5](ffrontend/src/screenshots/HealthCare_DoctorPage_5.png)
 
 ### Finance Dashboard
-![Finance Page 1](frontend/src/screenshots/HealthCare_FinancePage_1.png)
-![Finance Page 2](frontend/src/screenshots/HealthCare_FinancePage_2.png)
+![Finance Page 1](ffrontend/src/screenshots/HealthCare_FinancePage_1.png)
+![Finance Page 2](ffrontend/src/screenshots/HealthCare_FinancePage_2.png)
 
 ### Database (MongoDB)
-![MongoDB 1](frontend/src/screenshots/MongoDB_1.png)
-![MongoDB 2](frontend/src/screenshots/MongoDB_2.png)
-![MongoDB 3](frontend/src/screenshots/MongoDB_3.png)
+![MongoDB 1](ffrontend/src/screenshots/MongoDB_1.png)
+![MongoDB 2](ffrontend/src/screenshots/MongoDB_2.png)
+![MongoDB 3](ffrontend/src/screenshots/MongoDB_3.png)
+
 
 
 
