@@ -1,8 +1,8 @@
-const express = require("express");
+const express = require("express");  // this import to can build API
 const router = express.Router();
 const Visit = require("../models/Visit");  
 const mongoose = require("mongoose");
-const authMiddleware = require("../middleware/authMiddleware");
+const authMiddleware = require("../middleware/authMiddleware");  // for protect, allows only authorized roles to access
 
 
 // PATCH route: update payment status of a visit
@@ -36,14 +36,15 @@ router.patch("/update-paid/:id", authMiddleware(["finance"]), async (req, res) =
 router.get("/visits", authMiddleware(["finance"]), async (req, res) => {
     try {
         const { doctorName, patientName, visitId, status, sortBy } = req.query;
-
+        
+        //1- search by VisitId
         if (visitId) {
             if (!visitId.match(/^[0-9a-fA-F]{24}$/)) {
                 return res.status(400).json({ msg: "Invalid visit ID format" });
             }
 
             const visit = await Visit.findById(visitId)
-                .populate("doctor", "name email")    // replaces the ID with the actual object data
+                .populate("doctor", "name email")    // get the info for this id dont send just id found
                 .populate("patient", "name email");
 
             if (!visit) {
@@ -53,10 +54,10 @@ router.get("/visits", authMiddleware(["finance"]), async (req, res) => {
             return res.json([visit]);
         }
 
-        const aggregatePipeline = [];
+        
+        const aggregatePipeline = [];  // this allow make filtering, sorting easily
 
-        // Lookup doctor info
-        aggregatePipeline.push({
+        aggregatePipeline.push({   // joins the data from users collection into visits, where: visits.doctor matches users._id.
             $lookup: {
                 from: "users",
                 localField: "doctor",
@@ -64,9 +65,11 @@ router.get("/visits", authMiddleware(["finance"]), async (req, res) => {
                 as: "doctor",
             },
         });
-        aggregatePipeline.push({ $unwind: "$doctor" });
+        aggregatePipeline.push({ $unwind: "$doctor" });  // convert array to normal obj
+                                                        // result for ex:  "doctor": "_id": "1", "name": "Dr.", "email": "dr"
 
-        // Lookup patient info
+
+        
         aggregatePipeline.push({
             $lookup: {
                 from: "users",
@@ -77,10 +80,14 @@ router.get("/visits", authMiddleware(["finance"]), async (req, res) => {
         });
         aggregatePipeline.push({ $unwind: "$patient" });
 
-        // Build conditions
+
+
+        // to get all filter conditions
         const andConditions = [];
 
-        if (doctorName) {
+        if (doctorName) { // this what user write in textbox
+            // add condition of doctor name to filter 
+            //  i:  make regex case-insensitive , regrex for match
             andConditions.push({ "doctor.name": { $regex: doctorName, $options: "i" } });
         }
         if (patientName) {
@@ -91,10 +98,11 @@ router.get("/visits", authMiddleware(["finance"]), async (req, res) => {
         }
 
         if (andConditions.length > 0) {
-            aggregatePipeline.push({ $match: { $and: andConditions } });
+            aggregatePipeline.push({ $match: { $and: andConditions } });  //match to apply filters conditions
         }
 
         
+        // combine date with time to can make sorting by using them together
         aggregatePipeline.push({
             $addFields: {
                 dateTime: {
@@ -160,7 +168,7 @@ router.get("/visits", authMiddleware(["finance"]), async (req, res) => {
 
         
         aggregatePipeline.push({
-            $project: {
+            $project: {  // to choose what feild appear in final result in UI
                 _id: 1,
                 date: 1,
                 time: 1,
@@ -180,9 +188,10 @@ router.get("/visits", authMiddleware(["finance"]), async (req, res) => {
         });
 
 
-        const visits = await Visit.aggregate(aggregatePipeline);
+        const visits = await Visit.aggregate(aggregatePipeline); //run all pipelines one by one — then give me the final result
 
-        res.json(visits);
+
+        res.json(visits); // Sends the final visit data to the frontend
     } catch (err) {
         console.error(err);
         res.status(500).json({ msg: "Server error" });

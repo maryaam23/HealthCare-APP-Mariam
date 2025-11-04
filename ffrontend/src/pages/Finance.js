@@ -2,31 +2,26 @@ import { useState, useEffect } from "react";
 import api from "../api";
 import { motion } from "framer-motion";
 
-
-
-
-
-
-
-export default function Finance({ token }) {
-    const [filters, setFilters] = useState({
+export default function Finance({ token }) { // token: used for auth when fetching data from backend
+    
+    const [filters, setFilters] = useState({  //Initially, all fields of filter empty.
         doctorName: "",
         patientName: "",
         visitId: "",
         status: "",
         sortBy: "",
     });
-    const [visits, setVisits] = useState([]);
+    const [visits, setVisits] = useState([]);  //store the list of visits fetched from the backend.
     const [loading, setLoading] = useState(false);
     const [notification, setNotification] = useState({ type: "", message: "" });
     const isValidVisitId = (id) => /^[a-fA-F0-9]{24}$/.test(id);
 
-    useEffect(() => {
-        const delayDebounceFn = setTimeout(async () => {
+    useEffect(() => { // useEffect runs whenever filters or token changes.
+        const delayDebounceFn = setTimeout(async () => {  //waits 400ms before send request to avoid excessive API calls when the user types quickly.
             setLoading(true);
             try {
                 const params = new URLSearchParams();
-                if (filters.doctorName) params.append("doctorName", filters.doctorName);
+                if (filters.doctorName) params.append("doctorName", filters.doctorName); //Checks if user typed doctor name in the filter, if yes add it to API request.
                 if (filters.patientName) params.append("patientName", filters.patientName);
                 if (filters.visitId && isValidVisitId(filters.visitId)) {
                     params.append("visitId", filters.visitId);
@@ -45,7 +40,7 @@ export default function Finance({ token }) {
             }
         }, 400);
 
-        return () => clearTimeout(delayDebounceFn);
+        return () => clearTimeout(delayDebounceFn);  // clears timeout if filters change before 400ms, preventing multiple requests
     }, [filters, token]);
 
 
@@ -53,6 +48,7 @@ export default function Finance({ token }) {
         setFilters({ ...filters, [e.target.name]: e.target.value });
     };
 
+    //Reset Button func
     const handleReset = () => {
         setFilters({
             doctorName: "",
@@ -81,13 +77,11 @@ export default function Finance({ token }) {
     const totalSum = visits.reduce((sum, visit) => sum + (visit.totalAmount || 0), 0);
     const totalCompletedCount = visits.filter(v => v.status === "completed").length;
 
-
-    // Colors & shadows variables
-    const primaryColor = "#1E88E5"; // Blue 600
-    const primaryHover = "#1565C0"; // Blue 800
-    const successColor = "#43A047"; // Green 600
-    const warningColor = "#FB8C00"; // Orange 600
-    const errorColor = "#E53935"; // Red 600
+    const primaryColor = "#1E88E5"; 
+    const primaryHover = "#1565C0";
+    const successColor = "#43A047"; 
+    const warningColor = "#FB8C00";
+    const errorColor = "#E53935"; 
     const bgGradient = "linear-gradient(135deg, #E3F2FD 0%, #FFFFFF 100%)";
     const cardBg = "#FFFFFF";
     const borderRadius = 14;
@@ -171,7 +165,7 @@ export default function Finance({ token }) {
                     borderRadius,
                     boxShadow: "0 8px 28px rgba(30, 136, 229, 0.12)",
                     transition: "box-shadow 0.3s ease",
-                    overflowX: "auto", // allow horizontal scroll if too narrow
+                    overflowX: "auto", // allow horizontal scrol
                 }}
                 onSubmit={(e) => e.preventDefault()}
             >
@@ -240,7 +234,7 @@ export default function Finance({ token }) {
                     <option value="">All Statuses</option>
                     <option value="pending">Pending</option>
                     <option value="completed">Completed</option>
-                    <option value="cancelled">Cancelled</option> {/* Added */}
+                    <option value="cancelled">Cancelled</option> 
                 </select>
 
 
@@ -538,8 +532,6 @@ export default function Finance({ token }) {
                     </div>
 
 
-
-
                     <div
                         style={{
                             marginTop: 30,
@@ -590,10 +582,8 @@ export default function Finance({ token }) {
                             </div>
                         </div>
 
-
-
                         {/* Pending amount */}
-                        {/* Pending count */}
+                      
                         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                             <span
                                 role="img"
@@ -609,6 +599,7 @@ export default function Finance({ token }) {
                                 <div style={{ fontSize: 14, color: "#666" }}>Pending Visits</div>
                             </div>
                         </div>
+
                         {/* Cancelled Visits */}
                         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                             <span
@@ -625,6 +616,7 @@ export default function Finance({ token }) {
                                 <div style={{ fontSize: 14, color: "#666" }}>Cancelled Visits</div>
                             </div>
                         </div>
+
                         {/* Completed Visits Count */}
                         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                             <span

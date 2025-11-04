@@ -11,11 +11,12 @@ export default function Login({ onLogin }) {
 
   const login = async () => {
     try {
-      const res = await api.post("/auth/login", { email, password });
+       // Sends the email and password entered by the user to server and wait res->token and the user role
+      const res = await api.post("/auth/login", { email, password }); 
       setSuccess("Login successful! Welcome back.");
       setError("");
 
-      // Wait 1.5 seconds so the user sees the message, then call onLogin
+      // Wait 1.5 seconds so the user sees the message, then call Login
       setTimeout(() => {
         onLogin(res.data.token, res.data.role);
       }, 1500);
@@ -62,7 +63,7 @@ export default function Login({ onLogin }) {
 
         {/* Title */}
         <h2 style={{ color: "#1976d2", marginBottom: 20, fontWeight: 600 }}>
-          Health Care App Login
+          HealthCare App Login
         </h2>
 
         {/* Inputs */}

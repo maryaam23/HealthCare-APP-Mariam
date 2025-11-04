@@ -5,15 +5,16 @@ const authMiddleware = require("../middleware/authMiddleware");
 const DoctorSchedule = require("../models/DoctorSchedule");
 
 
+// to make only patient can cancle his reserve visit
 router.post("/cancel", authMiddleware(["patient"]), async (req, res) => {
   const { doctorId, date, time } = req.body;
   const patientId = req.user.id;
 
   try {
-    // Convert date string to Date object for Visit query (if needed)
+    
     const visitDate = new Date(date);
 
-    // Find and delete the visit instead of marking it cancelled
+    // Find and delete the visit
     const visit = await Visit.findOneAndDelete({
       doctor: doctorId,
       patient: patientId,
@@ -25,7 +26,7 @@ router.post("/cancel", authMiddleware(["patient"]), async (req, res) => {
       return res.status(404).json({ msg: "Visit not found" });
     }
 
-    // Update doctor's schedule: remove reserved slot and add it back to availableSlots
+    //remove reserved slot and add it back to availableSlots from doctor slots
     const schedule = await DoctorSchedule.findOne({ doctor: doctorId, date });
 
     if (!schedule) {
@@ -37,7 +38,7 @@ router.post("/cancel", authMiddleware(["patient"]), async (req, res) => {
       (slot) => !(slot.time === time && slot.patient.toString() === patientId)
     );
 
-    // Add the slot back to availableSlots if not already there
+    // Add the slot to availableSlots 
     if (!schedule.availableSlots.includes(time)) {
       schedule.availableSlots.push(time);
       schedule.availableSlots.sort();
@@ -56,25 +57,28 @@ router.post("/cancel", authMiddleware(["patient"]), async (req, res) => {
   }
 });
 
-// ✅ Patient reserves a visit
+
 function normalizeDate(dateStr) {
   const date = new Date(dateStr);
   date.setUTCHours(0, 0, 0, 0);
   return date;
 }
 
+// Patient reserves a visit
 router.post("/reserve", authMiddleware(["patient"]), async (req, res) => {
   try {
-    const { doctorId, date, time } = req.body;
+    const { doctorId, date, time } = req.body;  // patient send doctor id, time,day he want to reserve
+
     if (!doctorId || !date || !time) {
       return res.status(400).json({ msg: "doctorId, date and time are required" });
     }
 
+    // make hour 24 for the date
     const startOfDay = normalizeDate(date);
     const endOfDay = new Date(startOfDay);
     endOfDay.setUTCHours(23, 59, 59, 999);
 
-    // Check if slot is reserved for this doctor and date (anytime during the day)
+    // Check if slot is already reserved
     const existing = await Visit.findOne({
       doctor: doctorId,
       date: { $gte: startOfDay, $lte: endOfDay },
@@ -86,7 +90,7 @@ router.post("/reserve", authMiddleware(["patient"]), async (req, res) => {
       return res.status(400).json({ msg: "Slot already reserved" });
     }
 
-    // Prevent same patient double booking
+    // Prevent same patient double booking same time in same days in diff doctors
     const patientConflict = await Visit.findOne({
       patient: req.user.id,
       date: { $gte: startOfDay, $lte: endOfDay },
@@ -98,6 +102,7 @@ router.post("/reserve", authMiddleware(["patient"]), async (req, res) => {
       return res.status(400).json({ msg: "You already have a visit at this time" });
     }
 
+    //create and save the visit
     const visit = new Visit({
       patient: req.user.id,
       doctor: doctorId,
@@ -109,7 +114,7 @@ router.post("/reserve", authMiddleware(["patient"]), async (req, res) => {
 
 
 
-    // ✅ Update the doctor's schedule
+    // Update the doctor's schedule
     let schedule = await DoctorSchedule.findOne({ doctor: doctorId, date });
 
     if (!schedule) {
@@ -122,9 +127,8 @@ router.post("/reserve", authMiddleware(["patient"]), async (req, res) => {
         reservedSlots: [{ time, patient: req.user.id }]
       });
     } else {
+      //Removes time from available slots and adds it to reserved slots.
       schedule.availableSlots = schedule.availableSlots.filter((s) => s !== time);
-
-      // ✅ Only add if not duplicated
       const alreadyReserved = schedule.reservedSlots.some(
         (s) => s.time === time
       );
@@ -133,7 +137,7 @@ router.post("/reserve", authMiddleware(["patient"]), async (req, res) => {
       }
     }
 
-    await schedule.save();
+    await schedule.save();  //save changes to database
 
     return res.json({
       msg: "Visit reserved successfully!",
@@ -148,19 +152,13 @@ router.post("/reserve", authMiddleware(["patient"]), async (req, res) => {
   }
 });
 
-
-
-
-
-
-
-// Get all visits for logged-in doctor
+//Doctor views their visits
 router.get("/my-visits", authMiddleware(["doctor"]), async (req, res) => {
   try {
     const visits = await Visit.find({ doctor: req.user.id })
       .populate("patient", "name email") // show patient info
       .sort({ date: 1, time: 1 });
-    res.json(visits);
+    res.json(visits);  // Returns the list of visits.
   } catch (err) {
     console.error(err);
     res.status(500).json({ msg: "Server error" });
@@ -168,16 +166,14 @@ router.get("/my-visits", authMiddleware(["doctor"]), async (req, res) => {
 });
 
 
-// Doctor adds treatments
-// routes/visit.js
-
+// Doctor adds treatments - update a visit
 router.post("/add-treatments/:id", async (req, res) => {
   try {
     const { treatments, problem } = req.body;
-    const visit = await Visit.findById(req.params.id);
+    const visit = await Visit.findById(req.params.id);  // find a visit by id
     if (!visit) return res.status(404).json({ msg: "Visit not found" });
 
-    visit.problem = problem || visit.problem; // ✅ Save the diagnosis
+    visit.problem = problem || visit.problem; 
     visit.treatments = treatments;
     visit.totalAmount = treatments.reduce((sum, t) => sum + (t.cost || 0), 0);
     visit.status = "completed";

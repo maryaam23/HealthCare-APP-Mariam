@@ -1,12 +1,13 @@
-import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import api from "../api";
+import { useState, useEffect } from "react";  //useState - React to show updated value when variable changed
+//use effect:  actions after rendering (like API calls, timers, fetch).
+import { motion } from "framer-motion"; // to can use animation
+import api from "../api"; // to make api request
 import { FaUserCircle } from "react-icons/fa";
 
 export default function Patient({ token }) {
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState({ doctorId: "", date: "", time: "" });
+  const [selected, setSelected] = useState({ doctorId: "", date: "", time: "" });  // Tracks currently selected doctor/date/time before reserving.
   const [patient, setPatient] = useState(null);
   const [reservedSlots, setReservedSlots] = useState([]); // store reserved slots
   const [notification, setNotification] = useState({ type: "", message: "" });
@@ -16,11 +17,11 @@ export default function Patient({ token }) {
   useEffect(() => {
     const fetchPatient = async () => {
       try {
-        const res = await api.get("/auth/me", {
+        const res = await api.get("/auth/me", {  // to get patient details.
           headers: { Authorization: token },
         });
         console.log("Patient fetched:", res.data);
-        setPatient(res.data);
+        setPatient(res.data);  // stores patient info.
       } catch (err) {
         console.error("Failed to fetch patient:", err);
       }
@@ -29,12 +30,11 @@ export default function Patient({ token }) {
     if (token) fetchPatient();
   }, [token]);
 
-  // After fetching doctors
+
   useEffect(() => {
     if (token) {
       fetchDoctors();
-
-      // optional: refresh every 5 minutes
+      // refresh every 5 minutes
       const interval = setInterval(() => {
         fetchDoctors();
       }, 5 * 60 * 1000);
@@ -44,33 +44,31 @@ export default function Patient({ token }) {
   }, [token]);
 
 
+
+
   const fetchDoctors = async () => {
     setLoading(true);
     try {
-      const res = await api.get("/doctors", {
-        headers: { Authorization: token },
+      // res will contain Backend response,doctor data and their schedules
+      const res = await api.get("/doctors", {  // Send GET request to backend /doctors. await pauses the function until the backend responds.
+        headers: { Authorization: token }, // sends the user’s token to backend
       });
-      setDoctors(res.data);
-
+      setDoctors(res.data); // to display doctor list
       const allReserved = [];
-      res.data.forEach((doc) => {
-        doc.schedule.forEach((day) => {
-          day.reservedSlots.forEach((slotObj) => {
-            allReserved.push({
+      res.data.forEach((doc) => {  // Loops through each doctor in the fetched data
+        doc.schedule.forEach((day) => {  // Loops through each day in the doctor’s schedul, day have both availableSlots and reservedSlots
+          day.reservedSlots.forEach((slotObj) => {  // Loops through each reserved slot on day
+            allReserved.push({  // add it to allReserved array
               doctorId: doc.id,
               date: day.date,
               time: slotObj.time,
               patientId: slotObj.patient || null,
-              status: slotObj.status || "pending", // include real status from DB
+              status: slotObj.status || "pending", // is status missing make it pending
             });
           });
         });
       });
-
-      setReservedSlots(allReserved);
-
-
-
+      setReservedSlots(allReserved);  // update UI
     } catch (err) {
       console.error(err);
     } finally {
@@ -79,41 +77,41 @@ export default function Patient({ token }) {
   };
 
 
-  const reserveVisit = async () => {
+  const reserveVisit = async () => {  //async to can use wait fro api inside it
     if (!selected.doctorId || !selected.date || !selected.time) {
       showNotification("error", "⚠️ Please select doctor, date, and time first");
       return;
     }
     try {
-      const res = await api.post("/visit/reserve", selected, {
-        headers: { Authorization: token },
+      const res = await api.post("/visit/reserve", selected, { //send POST request to backend to create new visit have selected: doctorId, date, time.
+        headers: { Authorization: token }, //sends patient token for authentication
+        // await for wait bakend response befor continue
       });
 
       showNotification("success", res.data.message || "Visit reserved successfully!");
 
-      // Update reservedSlots locally
-      setReservedSlots((prev) => [
+      setReservedSlots((prev) => [  // add new reserve in previous array of reserved slots.
         ...prev,
         {
           doctorId: selected.doctorId,
           date: selected.date,
           time: selected.time,
           patientId: patient?._id,
-          status: "pending",  // <-- include status
+          status: "pending",
         },
       ]);
 
-      // Update doctors schedules locally
+
       setDoctors((prevDoctors) =>
         prevDoctors.map((doc) => {
           if (doc.id === selected.doctorId) {
             return {
               ...doc,
               schedule: doc.schedule.map((day) => {
-                if (day.date === selected.date) {
+                if (day.date === selected.date) {  // For matched doctor - id, loops through their schedule to find the specific day the patient selected.
                   return {
                     ...day,
-                    availableSlots: day.availableSlots.filter((s) => s !== selected.time),
+                    availableSlots: day.availableSlots.filter((s) => s !== selected.time), //remove the time from avalible it put it in reserved
                     reservedSlots: [...day.reservedSlots, { time: selected.time, patient: patient?._id }],
                   };
                 }
@@ -125,11 +123,13 @@ export default function Patient({ token }) {
         })
       );
 
-      setSelected({ doctorId: "", date: "", time: "" });
+      setSelected({ doctorId: "", date: "", time: "" }); // reset : clear selection so the patient can make a new reservation.
     } catch (err) {
       showNotification("error", err.response?.data?.msg || "Failed to reserve visit");
     }
   };
+
+
 
   const cancelReservation = async () => {
     if (!selected.doctorId || !selected.date || !selected.time) {
@@ -144,9 +144,9 @@ export default function Patient({ token }) {
 
       showNotification("success", res.data.message || "Reservation cancelled ✅");
 
-      // Update reservedSlots locally
-      setReservedSlots((prev) =>
-        prev.filter(
+
+      setReservedSlots((prev) =>  //reservedSlots - remove the cancelled slot.
+        prev.filter( // Uses filter to keep all slots except the one that matches the selected doctor, date, and time.
           (r) =>
             !(
               r.doctorId === selected.doctorId &&
@@ -156,7 +156,6 @@ export default function Patient({ token }) {
         )
       );
 
-      // Update doctors schedules locally
       setDoctors((prevDoctors) =>
         prevDoctors.map((doc) => {
           if (doc.id === selected.doctorId) {
@@ -167,7 +166,7 @@ export default function Patient({ token }) {
                   return {
                     ...day,
                     availableSlots: [...day.availableSlots, selected.time].sort(),
-                    reservedSlots: day.reservedSlots.filter((slot) => slot.time !== selected.time),
+                    reservedSlots: day.reservedSlots.filter((slot) => slot.time !== selected.time), // Removes the cancelled time from reservedSlots.
                   };
                 }
                 return day;
@@ -201,7 +200,7 @@ export default function Patient({ token }) {
       </div>
     );
 
-  // Define at top level inside the component
+  // check if already reserved by the logged-in patient and is not cancelled
   const selectedIsMyActiveReservation = reservedSlots.some(
     (r) =>
       r.doctorId === selected.doctorId &&
@@ -214,13 +213,11 @@ export default function Patient({ token }) {
 
   const showNotification = (type, message) => {
     setNotification({ type, message });
-    // Auto hide after 3 seconds
     setTimeout(() => setNotification({ type: "", message: "" }), 3000);
   };
 
 
   return (
-
     <div
       style={{
         fontFamily: "'Poppins', sans-serif",
@@ -291,7 +288,7 @@ export default function Patient({ token }) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
         style={{
-          margin: "0 0 30px 0px", // top 0, right 0, bottom 30px, left 20px
+          margin: "0 0 30px 0px",
           padding: "5px 15px",
           borderRadius: "16px",
           backdropFilter: "blur(10px)",
@@ -303,7 +300,6 @@ export default function Patient({ token }) {
           backgroundColor: "rgba(255,255,255,0.9)",
           borderLeft: "6px solid #1976d2",
 
-          // keeps box width controlled
         }}
       >
         <h1
@@ -376,10 +372,7 @@ export default function Patient({ token }) {
 
                     const reservedByUser = slotRecord && slotRecord.status === "pending";
                     const visitStatus = slotRecord?.status;
-                    // ✅ Move isPastSlot calculation here
                     const isPastSlot = new Date(`${day.date}T${slot}:00`) <= new Date();
-
-
 
                     return (
                       <button
@@ -399,9 +392,9 @@ export default function Patient({ token }) {
                           fontWeight: "bold",
                           background:
                             visitStatus === "cancelled"
-                              ? "#9e9e9e" // gray for cancelled
+                              ? "#9e9e9e"
                               : isPastSlot
-                                ? "#b0bec5" // gray for past slot
+                                ? "#b0bec5"
                                 : reservedByUser
                                   ? "#4caf50"
                                   : isReserved
@@ -435,8 +428,6 @@ export default function Patient({ token }) {
                               ? "(Reserved)"
                               : ""}
                       </button>
-
-
                     );
                   })}
                 </div>
@@ -446,7 +437,6 @@ export default function Patient({ token }) {
         </motion.div>
       ))}
 
-      {/* Reserve / Cancel Button */}
       {/* Reserve / Cancel Button */}
       {selected.time && (
         <motion.div
@@ -501,8 +491,6 @@ export default function Patient({ token }) {
               Reserve Visit
             </button>
           )}
-
-
         </motion.div>
       )}
 
@@ -516,11 +504,8 @@ export default function Patient({ token }) {
           margin: "50px 0 35px 0",
           textAlign: "center",
           fontFamily: "'Oleo Script', cursive",
-
           fontWeight: 300,
-
           letterSpacing: "0.7px",
-
           fontSize: 20,
           color: "#1976d2",
           textShadow: "0 1px 3px rgba(25,118,210,0.2)",

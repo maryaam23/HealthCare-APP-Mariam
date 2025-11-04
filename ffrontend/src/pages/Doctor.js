@@ -1,3 +1,4 @@
+//Frontend/ → React (user interface for doctors, patients, and finance)
 
 import { motion } from "framer-motion";
 import { FaUserMd, FaCalendarAlt, FaStethoscope, FaSignOutAlt } from "react-icons/fa";
@@ -5,16 +6,7 @@ import api from "../api";
 import { useState, useEffect, useRef } from "react";
 import { FaTrash } from "react-icons/fa";
 
-
-
-
-
-
-
-//Frontend/ → React (user interface for doctors, patients, and finance)
-
-
-// Utility: get all days in a month
+// get all days in a month
 const getDaysInMonth = (year, month) => {
   const date = new Date(year, month, 1);
   const days = [];
@@ -41,13 +33,14 @@ export default function Doctor({ token }) {
   const [notification, setNotification] = useState({ type: "", message: "" });
 
 
+  // load the logged-in doctor info
   useEffect(() => {
     const fetchDoctor = async () => {
       try {
         const res = await api.get("/auth/me", {
           headers: { Authorization: token },
         });
-        console.log("Doctor fetched:", res.data); // check console
+        console.log("Doctor fetched:", res.data); 
         setDoctor(res.data);
       } catch (err) {
         console.error("Failed to fetch doctor:", err);
@@ -58,6 +51,7 @@ export default function Doctor({ token }) {
   }, [token]);
 
 
+  // get all visits for the logged-in doctor
   const fetchVisits = async () => {
     try {
       setLoading(true);
@@ -76,8 +70,11 @@ export default function Doctor({ token }) {
     fetchVisits();
   }, [token]);
 
+
+  // Adds a new treatment to the treatments array
   const addTreatment = () =>
     setTreatments([...treatments, { name: "", cost: 0 }]);
+
 
   const handleChange = (i, field, value) => {
     const temp = [...treatments];
@@ -85,11 +82,12 @@ export default function Doctor({ token }) {
     setTreatments(temp);
   };
 
-  // --- Add this function here ---
+
   const handleMonthSelect = (monthIdx) => {
-    setSelectedMonth(monthIdx); // set selected month
-    setSelectedDate(null); // reset day selection when switching months
+    setSelectedMonth(monthIdx); //store the selected month index
+    setSelectedDate(null);     //clear any previously selected date
   };
+
 
   const getMonthlySummary = (year, month) => {
     const monthVisits = visits.filter((v) => {
@@ -105,13 +103,12 @@ export default function Doctor({ token }) {
   };
 
   const submit = async () => {
-    // Check if problem is empty
+   
     if (!problem.trim()) {
       showNotification("error", "Please enter the patient's problem or diagnosis.");
       return;
     }
 
-    // Check if any treatment has empty name or cost
     for (let i = 0; i < treatments.length; i++) {
       const t = treatments[i];
       if (!t.name.trim()) {
@@ -131,8 +128,6 @@ export default function Doctor({ token }) {
         { headers: { Authorization: token } }
       );
       showNotification("success", "Treatments and problem added successfully!");
-
-      // Reset form
       await fetchVisits();
       setVisitId("");
       setProblem("");
@@ -175,8 +170,6 @@ export default function Doctor({ token }) {
 
 
   return (
-
-
     <div style={{
       fontFamily: "'Poppins', sans-serif",
       background: "linear-gradient(to right, #e3f2fd, #bbdefb)",
@@ -215,8 +208,6 @@ export default function Doctor({ token }) {
         </motion.div>
       )}
 
-
-
       {/* Welcome Message */}
       <motion.div
         initial={{ opacity: 0, y: -15 }}
@@ -241,8 +232,6 @@ export default function Doctor({ token }) {
           Manage your appointments, track patient progress, and make every visit meaningful.
         </p>
       </motion.div>
-
-
 
 
       {/* Doctor Header */}
@@ -276,7 +265,6 @@ export default function Doctor({ token }) {
           Appointments & Calendar
         </h2>
       </motion.div>
-
 
 
       {/* Year / Month / Day Select */}
@@ -323,7 +311,7 @@ export default function Doctor({ token }) {
               <button
 
                 onClick={() => {
-                  setSelectedYear(null); // go back to days
+                  setSelectedYear(null);  // go back to days
                   setVisitId("");         // hide add treatments form
                 }}
                 style={{
@@ -374,7 +362,6 @@ export default function Doctor({ token }) {
           )}
 
           {/* Step 3: Days */}
-          {/* Step 3: Days */}
           {selectedMonth !== null && !selectedDate && (
             getDaysInMonth(selectedYear, selectedMonth).some(day => getVisitsForDate(day).length > 0) && (
               <div
@@ -382,7 +369,7 @@ export default function Doctor({ token }) {
               >
                 <button
                   onClick={() => {
-                    setSelectedMonth(null); // go back to months
+                    setSelectedMonth(null);  // go back to months
                     setVisitId("");         // hide add treatments form
                   }}
                   style={{
@@ -466,7 +453,7 @@ export default function Doctor({ token }) {
         >
           <button
             onClick={() => {
-              setSelectedDate(null); // go back to days
+              setSelectedDate(null);  // go back to days
               setVisitId("");         // hide add treatments form
             }}
             style={{
@@ -484,7 +471,7 @@ export default function Doctor({ token }) {
 
           <h3 style={{ color: "#1976d2" }}>Appointments for {selectedDate.toDateString()}</h3>
 
-          {/* ✅ Summary line for appointments */}
+          {/* Summary for appointments */}
           {(() => {
             const dayVisits = getVisitsForDate(selectedDate);
             const completedCount = dayVisits.filter(v => v.status === "completed").length;
@@ -570,9 +557,6 @@ export default function Doctor({ token }) {
                   </div>
                 )}
 
-                {/* Remove this whole conditional block for Completed/Cancelled/Pending */}
-                {/* Keep only the Add Treatments button for pending visits */}
-
                 {v.status === "pending" && (
                   <button
                     onClick={() => {
@@ -604,7 +588,6 @@ export default function Doctor({ token }) {
         </motion.div>
       )}
 
-
       {/* Add Treatments Form */}
       {visitId && (
         <motion.div
@@ -624,7 +607,7 @@ export default function Doctor({ token }) {
           <button
             onClick={() => {
               setVisitId(null);
-              setSelectedVisit(null); // ✅ reset selected visit
+              setSelectedVisit(null); // reset selected visit
             }}
 
             style={{
@@ -674,7 +657,6 @@ export default function Doctor({ token }) {
           </h3>
 
 
-
           {/* Problem / Diagnosis */}
           <div style={{ marginBottom: 25 }}>
             <label style={{ display: "block", fontWeight: 600, marginBottom: 8, color: "#333" }}>
@@ -717,7 +699,7 @@ export default function Doctor({ token }) {
                 border: "1px solid #1976d2",
                 boxShadow: "0 4px 15px rgba(0,0,0,0.05)",
                 alignItems: "flex-start",
-                position: "relative", // needed for absolute positioning of trash icon
+                position: "relative", 
               }}
             >
               {/* Treatment Name */}
@@ -778,7 +760,7 @@ export default function Doctor({ token }) {
           ))}
 
 
-          {/* Action Buttons */}
+          {/* Add more Buttons */}
           <div style={{ marginTop: 10, display: "flex", gap: 15 }}>
             <button
               onClick={addTreatment}
@@ -817,20 +799,20 @@ export default function Doctor({ token }) {
           </div>
         </motion.div>
       )}
-      {/* Motivational Banner */}
+      {/* Motivation */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}
         style={{
-          margin: "50px auto 35px auto", // added top margin (30px)
-          padding: "10px 10px",          // smaller padding
-          maxWidth: "450px",             // limit width
+          margin: "50px auto 35px auto",
+          padding: "10px 10px",          
+          maxWidth: "450px",            
           borderRadius: 10,
           textAlign: "center",
           fontFamily: "'Oleo Script', cursive",
-          fontSize: 16,                  // slightly larger for script font
-          fontWeight: 300,               // script fonts usually look better lighter
+          fontSize: 16,                 
+          fontWeight: 300,               
           color: "white",
           background: "linear-gradient(135deg, #207ac3dc, #115191c9)",
           boxShadow: "0 6px 20px rgba(145, 197, 248, 0.55)",
